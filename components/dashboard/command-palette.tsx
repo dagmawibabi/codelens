@@ -17,14 +17,15 @@ import {
   CircleDot,
 } from "lucide-react"
 import {
+  Command,
   CommandDialog,
   CommandInput,
   CommandList,
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandShortcut,
   CommandSeparator,
+  CommandShortcut,
 } from "@/components/ui/command"
 import { useInspector } from "./inspector"
 import { severityStyle } from "@/lib/severity"
@@ -95,8 +96,9 @@ export function CommandPalette({
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} className="sm:!max-w-xl">
-      <CommandInput placeholder="Search issues, files, and actions…" />
-      <CommandList>
+      <Command>
+        <CommandInput placeholder="Search issues, files, and actions…" />
+        <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
         <CommandGroup heading="Go to tab">
@@ -155,7 +157,8 @@ export function CommandPalette({
             )
           })}
         </CommandGroup>
-      </CommandList>
+        </CommandList>
+      </Command>
     </CommandDialog>
   )
 }
