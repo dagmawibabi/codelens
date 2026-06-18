@@ -14,6 +14,8 @@ import {
   Package,
   ArrowRight,
   ShieldAlert,
+  KeyRound,
+  Globe,
 } from "lucide-react"
 import {
   Sheet,
@@ -404,6 +406,75 @@ export function InspectorProvider({
                           <FileLink key={f} path={f} className="text-[11px]" />
                         ))}
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Environment variable metadata */}
+                {issue.env && (
+                  <div className="flex flex-col gap-2">
+                    <SectionLabel icon={KeyRound}>Variable</SectionLabel>
+                    <div className="rounded-sm border border-border bg-card">
+                      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                        <span className="font-mono text-sm text-foreground">{issue.env.key}</span>
+                        <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                          {issue.env.scope}
+                        </span>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-px bg-border font-mono text-xs">
+                        <MetaCell label="status" value={issue.env.status} highlight={issue.env.status === "exposed"} />
+                        <MetaCell label="value" value={issue.env.sample ?? "—"} />
+                      </dl>
+                    </div>
+                    {issue.env.definedIn.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] text-muted-foreground">declared in:</span>
+                        {issue.env.definedIn.map((f) => (
+                          <FileLink key={f} path={f} className="text-[11px]" />
+                        ))}
+                      </div>
+                    )}
+                    {issue.env.usedIn.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] text-muted-foreground">referenced in:</span>
+                        {issue.env.usedIn.map((f) => (
+                          <FileLink key={f} path={f} className="text-[11px]" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Network call metadata */}
+                {issue.net && (
+                  <div className="flex flex-col gap-2">
+                    <SectionLabel icon={Globe}>Request</SectionLabel>
+                    <div className="rounded-sm border border-border bg-card">
+                      <div className="flex items-center gap-2 border-b border-border px-3 py-2 font-mono text-xs">
+                        <span className="rounded-sm bg-secondary px-1.5 py-0.5 uppercase text-foreground">{issue.net.method}</span>
+                        <span className="truncate text-foreground">{issue.net.url}</span>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-px bg-border font-mono text-xs sm:grid-cols-4">
+                        <MetaCell label="host" value={issue.net.host} />
+                        <MetaCell label="client" value={issue.net.client} />
+                        <MetaCell label="scheme" value={issue.net.secure ? "https" : "http"} highlight={!issue.net.secure} />
+                        <MetaCell label="scope" value={issue.net.external ? "external" : "internal"} />
+                      </dl>
+                    </div>
+                    {issue.net.issues.length > 0 && (
+                      <ul className="flex flex-col gap-1.5">
+                        {issue.net.issues.map((i, idx) => {
+                          const s = severityStyle(i.severity)
+                          return (
+                            <li key={idx} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                              <span className={cn("mt-1 size-1.5 shrink-0 rounded-full", s.dot)} aria-hidden />
+                              <span>
+                                <span className="font-mono text-[10px] uppercase text-foreground">{i.kind}</span> — {i.message}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
                     )}
                   </div>
                 )}

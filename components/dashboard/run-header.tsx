@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Play, Terminal, Sparkles, Settings, Clock } from "lucide-react"
+import { Play, Terminal, Sparkles, Settings, Clock, Search } from "lucide-react"
 import { HelpDialog } from "./help-dialog"
 import { ThemeToggle } from "./theme-toggle"
 import type { ProjectInfo } from "@/lib/schema"
@@ -13,9 +13,11 @@ interface RunHeaderProps {
   lastRunMs: number | null
   /** When the most recent run finished, as a human label. */
   lastRunLabel?: string
+  /** Opens the command palette / search. */
+  onOpenSearch?: () => void
 }
 
-export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel }: RunHeaderProps) {
+export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel, onOpenSearch }: RunHeaderProps) {
   return (
     <header className="flex flex-col gap-4 border-b border-border bg-card/50 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-start gap-3">
@@ -53,6 +55,16 @@ export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel }: RunHe
           <Play className="size-4" />
           Run checks
         </Link>
+        {onOpenSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="Search"
+            className="inline-flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Search className="size-4" />
+          </button>
+        )}
         <HelpDialog />
         <Link
           href="/settings"

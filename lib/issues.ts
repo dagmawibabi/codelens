@@ -5,8 +5,9 @@ import type {
   DependencyFinding,
   Severity,
 } from "./schema"
+import type { EnvVariable, NetworkCall, GitIssue } from "./project-insights"
 
-export type IssueSource = "lint" | "types" | "security" | "deps"
+export type IssueSource = "lint" | "types" | "security" | "deps" | "env" | "network" | "git"
 
 /** A normalized issue used by the shared detail sheet. */
 export interface Issue {
@@ -41,6 +42,25 @@ export interface Issue {
     kind: string
     license?: string
     usedIn?: string[]
+  }
+  /** Environment-variable metadata, present when source === "env". */
+  env?: {
+    key: string
+    scope: string
+    status: string
+    usedIn: string[]
+    definedIn: string[]
+    sample?: string
+  }
+  /** Network-call metadata, present when source === "network". */
+  net?: {
+    url: string
+    host: string
+    method: string
+    client: string
+    secure: boolean
+    external: boolean
+    issues: { kind: string; severity: Severity; message: string }[]
   }
 }
 
@@ -126,6 +146,74 @@ export function depToIssue(d: DependencyFinding): Issue {
       usedIn: d.usedIn,
     },
   }
+}
+
+const ENV_STATUS_TITLE: Record<string, string> = {
+  ok: "Configured correctly",
+  missing: "Referenced but never defined",
+  undocumented: "Missing from .env.example",
+  unused: "Defined but never used",
+  exposed: "Secret reachable from the client bundle",
+  empty: "Defined with an empty value",
+}
+
+export function envToIssue(v: EnvVariable): Issue {
+  return {
+    source: "env",
+    severity: v.severity,
+    title: `${v.key} — ${ENV_STATUS_TITLE[v.status] ?? v.status}`,
+    filePath: v.usedIn[0] ?? v.definedIn[0] ?? ".env.local",
+    line: 1,
+    category: v.status,
+    description: v.note,
+    recommendation:
+      v.status === "exposed"
+        ? "Move this read into a Server Component, Route Handler, or Server Action. Never reference a non-NEXT_PUBLIC secret from client code."
+        : v.status === "missing"
+          ? "Add the variable to .env.local (and .env.example) before it is read at runtime."
+          : v.status === "undocumented"
+            ? "Add the key with a placeholder value and a comment to .env.example."
+            : v.status === "unused"
+              ? "Remove the unused variable to reduce confusion and attack surface."
+              : v.status === "empty"
+                ? "Provide a real value or guard the code path that reads it."
+                : undefined,
+    env: { key: v.key, scope: v.scope, status: v.status, usedIn: v.usedIn, definedIn: v.definedIn, sample: v.sample },
+  }
+}
+
+export function networkToIssue(c: NetworkCall): Issue {
+  const top = [...c.issues].sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0]
+  return {
+    source: "network",
+    severity: top?.severity ?? "info",
+    title: top ? top.message : `${c.method} ${c.host}`,
+    filePath: c.filePath,
+    line: c.line,
+    category: c.client,
+    description:
+      `${c.method} request to ${c.url} via ${c.client}.` +
+      (c.issues.length ? ` ${c.issues.length} issue${c.issues.length === 1 ? "" : "s"} detected.` : " No issues detected."),
+    recommendation: c.issues.map((i) => i.message).join(" "),
+    net: { url: c.url, host: c.host, method: c.method, client: c.client, secure: c.secure, external: c.external, issues: c.issues },
+  }
+}
+
+export function gitToIssue(g: GitIssue): Issue {
+  return {
+    source: "git",
+    severity: g.severity,
+    title: g.title,
+    filePath: g.filePath ?? ".git",
+    line: 1,
+    category: g.kind,
+    description: g.detail,
+    recommendation: g.recommendation,
+  }
+}
+
+function severityRank(s: Severity): number {
+  return { critical: 6, error: 5, high: 4, warning: 3, medium: 3, low: 2, info: 1 }[s] ?? 1
 }
 
 /* ------------------------------------------------------------------ */
@@ -239,6 +327,36 @@ export function issueDocs(issue: Issue): DocLink[] {
     )
     if (issue.dep.kind === "license") {
       links.push({ label: "SPDX license list", href: "https://spdx.org/licenses/", kind: "SPDX" })
+    }
+  }
+
+  if (issue.source === "env") {
+    links.push(
+      { label: "Next.js: Environment Variables", href: "https://nextjs.org/docs/app/building-your-application/configuring/environment-variables", kind: "Next.js" },
+      { label: "OWASP: Secrets Management", href: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html", kind: "OWASP" },
+    )
+    if (issue.env?.status === "exposed") {
+      links.push({ label: "Next.js: Keeping Server-Only Code", href: "https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns#keeping-server-only-code-out-of-the-client-environment", kind: "Next.js" })
+    }
+  }
+
+  if (issue.source === "network") {
+    links.push(
+      { label: "MDN: Using the Fetch API", href: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", kind: "MDN" },
+      { label: "MDN: AbortController (timeouts)", href: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController", kind: "MDN" },
+    )
+    if (issue.net && !issue.net.secure) {
+      links.push({ label: "MDN: Mixed content", href: "https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content", kind: "MDN" })
+    }
+  }
+
+  if (issue.source === "git") {
+    links.push(
+      { label: "GitHub: Removing sensitive data", href: "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository", kind: "GitHub" },
+      { label: "GitHub Actions: Security hardening", href: "https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions", kind: "GitHub" },
+    )
+    if (issue.category === "large-file") {
+      links.push({ label: "Git LFS", href: "https://git-lfs.com/", kind: "Git LFS" })
     }
   }
 
