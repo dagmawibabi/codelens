@@ -1,6 +1,3 @@
-"use client"
-
-import { useCallback, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { RunHeader } from "@/components/dashboard/run-header"
@@ -9,57 +6,9 @@ import { LintPanel } from "@/components/dashboard/lint-panel"
 import { TypesPanel } from "@/components/dashboard/types-panel"
 import { SecurityPanel } from "@/components/dashboard/security-panel"
 import { mockReport, mockHistory } from "@/lib/mock-data"
-import type { RunPhase, PhaseStatus } from "@/lib/schema"
-
-const IDLE_PHASES: Record<RunPhase, PhaseStatus> = {
-  detect: "idle",
-  lint: "idle",
-  types: "idle",
-  deps: "idle",
-  security: "idle",
-}
-
-const DONE_PHASES: Record<RunPhase, PhaseStatus> = {
-  detect: "done",
-  lint: "done",
-  types: "done",
-  deps: "done",
-  security: "done",
-}
-
-const PHASE_ORDER: RunPhase[] = ["detect", "lint", "types", "deps", "security"]
 
 export default function Page() {
   const report = mockReport
-  const [running, setRunning] = useState(false)
-  const [phases, setPhases] = useState<Record<RunPhase, PhaseStatus>>(DONE_PHASES)
-
-  // Simulate a streaming run: phases light up sequentially. In the installed
-  // CLI these transitions are driven by real WebSocket events.
-  const handleRun = useCallback(() => {
-    setRunning(true)
-    setPhases(IDLE_PHASES)
-    let i = 0
-
-    const step = () => {
-      const phase = PHASE_ORDER[i]
-      setPhases((prev) => ({ ...prev, [phase]: "running" }))
-      window.setTimeout(
-        () => {
-          setPhases((prev) => ({ ...prev, [phase]: "done" }))
-          i += 1
-          if (i < PHASE_ORDER.length) {
-            step()
-          } else {
-            setRunning(false)
-          }
-        },
-        420 + Math.random() * 480,
-      )
-    }
-    step()
-  }, [])
-
   const { lint, types, security } = report
   const securityCount = security.findings.length + security.dependencies.length
 
@@ -68,10 +17,8 @@ export default function Page() {
       <RunHeader
         project={report.meta.project}
         aiEnabled={report.meta.aiEnabled}
-        running={running}
-        phases={phases}
-        durationMs={report.meta.durationMs}
-        onRun={handleRun}
+        lastRunMs={report.meta.durationMs}
+        lastRunLabel="just now"
       />
 
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">

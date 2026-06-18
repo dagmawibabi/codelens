@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Cpu, KeyRound, ShieldCheck, FileJson, Save, Check, RotateCcw } from "lucide-react"
+import useSWR from "swr"
+import { Cpu, KeyRound, ShieldCheck, FileJson, Save, Check, RotateCcw, Loader2, RefreshCw } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -20,9 +21,12 @@ import {
   toConfigFile,
   DEFAULT_SETTINGS,
   type CodeLensSettings,
+  type ModelOption,
   type ProviderId,
 } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 function SectionCard({
   icon: Icon,
@@ -62,6 +66,22 @@ export function SettingsView() {
   }, [])
 
   const provider = getProvider(settings.provider)
+  const isGateway = settings.provider === "vercel"
+
+  // Fetch live model catalog from the AI Gateway when that provider is active.
+  const {
+    data: gatewayData,
+    isLoading: gatewayLoading,
+    mutate: refreshGateway,
+  } = useSWR<{ models?: ModelOption[]; error?: string }>(
+    isGateway ? "/api/gateway-models" : null,
+    fetcher,
+    { revalidateOnFocus: false },
+  )
+
+  // Effective model list: live gateway list when available, else static catalog.
+  const models: ModelOption[] =
+    isGateway && gatewayData?.models?.length ? gatewayData.models : provider.models
 
   // Keep the model valid whenever the provider changes.
   function selectProvider(id: ProviderId) {
@@ -169,13 +189,29 @@ export function SettingsView() {
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Model</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="font-mono text-xs uppercase tracking-wide text-muted-foreground">Model</Label>
+                  {isGateway && (
+                    <button
+                      type="button"
+                      onClick={() => refreshGateway()}
+                      className="inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {gatewayLoading ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="size-3" />
+                      )}
+                      {gatewayLoading ? "loading" : `${models.length} live`}
+                    </button>
+                  )}
+                </div>
                 <Select value={settings.model} onValueChange={(v) => patch({ model: v })}>
                   <SelectTrigger className="w-full rounded-sm font-mono">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {provider.models.map((m) => (
+                  <SelectContent className="max-h-72">
+                    {models.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         {m.label}
                       </SelectItem>
@@ -184,9 +220,18 @@ export function SettingsView() {
                 </Select>
               </div>
             </div>
-            {provider.models.find((m) => m.id === settings.model)?.note && (
+            {isGateway && (
               <p className="font-mono text-xs text-muted-foreground">
-                {provider.models.find((m) => m.id === settings.model)?.note}
+                {gatewayLoading
+                  ? "Fetching the live model list from the AI Gateway…"
+                  : gatewayData?.models?.length
+                    ? "Live text models from the Vercel AI Gateway."
+                    : "Showing built-in defaults — could not reach the gateway."}
+              </p>
+            )}
+            {models.find((m) => m.id === settings.model)?.note && (
+              <p className="font-mono text-xs text-muted-foreground">
+                {models.find((m) => m.id === settings.model)?.note}
               </p>
             )}
           </div>
@@ -194,20 +239,23 @@ export function SettingsView() {
 
         <SectionCard
           icon={KeyRound}
-          title="API keys"
-          desc="Keys are stored locally in your browser and written to .codelens.json for the CLI. They are never sent anywhere else."
+          title="API key"
+          desc="Stored locally in your browser and written to .codelens.json for the CLI. Never sent anywhere else."
         >
-          <div className="flex flex-col gap-1">
-            {PROVIDERS.map((p) => (
-              <KeyInput
-                key={p.id}
-                provider={p}
-                value={settings.keys[p.id] ?? ""}
-                active={p.id === settings.provider}
-                onChange={(v) => setKey(p.id, v)}
-              />
-            ))}
-          </div>
+          {provider.needsKey ? (
+            <KeyInput
+              key={provider.id}
+              provider={provider}
+              value={settings.keys[provider.id] ?? ""}
+              active
+              onChange={(v) => setKey(provider.id, v)}
+            />
+          ) : (
+            <p className="font-mono text-xs leading-relaxed text-muted-foreground">
+              {provider.name} runs locally and needs no API key. Make sure the Ollama server is running and reachable
+              at <span className="text-foreground">{provider.envVar}</span>.
+            </p>
+          )}
         </SectionCard>
       </div>
 
