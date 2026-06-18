@@ -143,11 +143,37 @@ export interface DependencyFinding {
   reference?: string
 }
 
+/** A node in the resolved dependency graph. */
+export interface DependencyNode {
+  /** Package name, unique per node. */
+  id: string
+  version: string
+  type: DependencyKind
+  /** Distance from the project root (0 = direct dependency). */
+  depth: number
+  /** Install size in KB, when known. */
+  sizeKb?: number
+  /** Names of packages this node directly depends on. */
+  dependencies: string[]
+  /** Whether this node has an associated finding. */
+  flagged?: boolean
+  /** Severity of the worst associated finding. */
+  severity?: Severity
+}
+
+export interface DependencyGraph {
+  /** Root project name. */
+  root: string
+  nodes: DependencyNode[]
+}
+
 export interface DependencyResult {
   counts: { total: number; direct: number; dev: number; transitive: number }
   findings: DependencyFinding[]
   /** The manifest file these findings were derived from. */
   manifestPath: string
+  /** Resolved module graph for visualization. */
+  graph?: DependencyGraph
 }
 
 export interface HealthScore {

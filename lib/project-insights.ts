@@ -196,7 +196,8 @@ export interface SetupResult {
 /* Documentation / AI readiness                                        */
 /* ------------------------------------------------------------------ */
 
-export type DocCheckStatus = "pass" | "warn" | "fail"
+export type DocCheckStatus = "pass" | "warn" | "fail" | "na"
+export type DocBand = "excellent" | "good" | "needs-improvement" | "poor"
 
 export interface DocCheck {
   id: string
@@ -204,10 +205,39 @@ export interface DocCheck {
   status: DocCheckStatus
   /** Why this matters and what to do. */
   detail: string
-  /** Contribution to the overall score. */
+  /** Max points this check contributes within its standard. */
   weight: number
+  /** Grouping within a standard (e.g. "Discovery", "Structure", "Context"). */
+  group?: string
   /** Whether this check specifically gates AI/agent readiness. */
   agent: boolean
+  /** Concrete remediation step. */
+  fix?: string
+}
+
+/**
+ * One scoring standard contributing to the overall documentation benchmark.
+ * We combine the Vercel Agent Readability spec, the llms.txt spec
+ * (llmstxt.org), the farming-labs Agent Score, and a general documentation
+ * quality rubric. Each yields a 0–100 sub-score; the benchmark is their
+ * weighted blend.
+ */
+export interface DocStandard {
+  id: "vercel" | "llmstxt" | "farming" | "quality"
+  label: string
+  /** One-line description of what the standard measures. */
+  tagline: string
+  /** Attribution / origin of the rubric. */
+  source: string
+  href: string
+  /** 0–100 sub-score. */
+  score: number
+  /** Weight in the overall benchmark, 0–1 (sums to 1 across standards). */
+  weight: number
+  band: DocBand
+  /** True when full evaluation requires probing a live docs URL. */
+  liveOnly?: boolean
+  checks: DocCheck[]
 }
 
 export interface DocFile {
@@ -221,13 +251,99 @@ export interface DocFile {
 }
 
 export interface DocsResult {
+  /** Overall weighted benchmark score, 0–100. */
   score: number
   grade: "A+" | "A" | "B" | "C" | "D" | "F"
+  band: DocBand
   agentReady: boolean
   /** 0–100 score specifically for AI/agent consumption. */
   agentScore: number
+  /** Live docs URL probed for farming-labs-style checks, if any. */
+  liveUrl: string | null
+  /** Per-standard sub-scores that make up the benchmark. */
+  standards: DocStandard[]
   documents: DocFile[]
-  checks: DocCheck[]
+}
+
+/* ------------------------------------------------------------------ */
+/* Database                                                            */
+/* ------------------------------------------------------------------ */
+
+export type DbEngine = "postgres" | "mysql" | "mongodb" | "sqlite" | "redis" | "other"
+
+export type DbIssueKind =
+  | "n+1"
+  | "missing-index"
+  | "no-pooling"
+  | "injection"
+  | "unparameterized"
+  | "schema-drift"
+  | "no-migration"
+  | "unbounded-query"
+  | "no-ssl"
+  | "connection-leak"
+  | "missing-ttl"
+  | "full-scan"
+  | "no-validation"
+
+export interface DbConnection {
+  id: string
+  engine: DbEngine
+  /** Logical name / database name. */
+  name: string
+  /** Driver or ORM used to connect (e.g. Prisma, Drizzle, mongoose, pg). */
+  client: string
+  host: string
+  /** TLS/SSL enforced on the connection. */
+  ssl: boolean
+  /** Whether a connection pool / pooled URL is in use. */
+  pooled: boolean
+  /** Env var holding the connection string. */
+  envVar: string
+  /** Tables (SQL) or collections (Mongo). */
+  collections: number
+  /** Where the client is instantiated. */
+  filePath: string
+}
+
+export interface DbFinding {
+  id: string
+  engine: DbEngine
+  kind: DbIssueKind
+  severity: Severity
+  title: string
+  detail: string
+  filePath: string
+  line?: number
+  recommendation: string
+  /** Optional offending query/code snippet. */
+  snippet?: { startLine: number; code: string }
+  /** Target table/collection. */
+  target?: string
+}
+
+export interface DbQuery {
+  id: string
+  engine: DbEngine
+  /** SELECT / INSERT / find / aggregate / etc. */
+  operation: string
+  /** Table or collection. */
+  target: string
+  filePath: string
+  line: number
+  /** Estimated execution time in ms. */
+  estMs: number
+  /** Whether the planner reports a full scan. */
+  fullScan: boolean
+  note: string
+}
+
+export interface DbResult {
+  connections: DbConnection[]
+  findings: DbFinding[]
+  /** Notable / slowest observed queries. */
+  queries: DbQuery[]
+  counts: { connections: number; collections: number; findings: number; slowQueries: number }
 }
 
 /* ------------------------------------------------------------------ */
@@ -240,6 +356,7 @@ export interface ProjectInsights {
   git: GitResult
   setup: SetupResult
   docs: DocsResult
+  database: DbResult
 }
 
 /* ================================================================== */
@@ -725,10 +842,12 @@ export const projectInsights: ProjectInsights = {
   },
 
   docs: {
-    score: 64,
-    grade: "C",
+    score: 52,
+    grade: "D",
+    band: "needs-improvement",
     agentReady: false,
-    agentScore: 48,
+    agentScore: 44,
+    liveUrl: null,
     documents: [
       { name: "README.md", path: "README.md", present: true, score: 72, words: 840, note: "Has setup and scripts, but no architecture overview or env-var table." },
       { name: "AGENTS.md", path: "AGENTS.md", present: false, score: 0, words: 0, note: "Missing. Agents have no machine-readable guide to conventions, commands, or boundaries." },
@@ -737,17 +856,324 @@ export const projectInsights: ProjectInsights = {
       { name: "CHANGELOG.md", path: "CHANGELOG.md", present: false, score: 0, words: 0, note: "No changelog — release history is undocumented." },
       { name: "API reference", path: "docs/api.md", present: true, score: 44, words: 510, note: "Partially documents 6 of 18 routes; many endpoints undocumented." },
     ],
-    checks: [
-      { id: "d1", label: "README has quick-start", status: "pass", weight: 10, agent: false, detail: "Install + dev commands are present and runnable." },
-      { id: "d2", label: "AGENTS.md present", status: "fail", weight: 15, agent: true, detail: "No AGENTS.md. AI agents lack a machine-readable description of build/test commands, conventions, and do-not-touch areas." },
-      { id: "d3", label: "llms.txt index", status: "fail", weight: 10, agent: true, detail: "No llms.txt at the project root to point LLMs at the most relevant docs and routes." },
-      { id: "d4", label: "Environment variables documented", status: "warn", weight: 12, agent: true, detail: ".env.example exists but 3 used variables are undocumented and none have descriptions." },
-      { id: "d5", label: "Public API/JSDoc coverage", status: "warn", weight: 12, agent: true, detail: "Only 38% of exported functions have JSDoc. Agents infer intent better with typed, documented signatures." },
-      { id: "d6", label: "Scripts documented", status: "pass", weight: 8, agent: true, detail: "All package.json scripts are explained in the README." },
-      { id: "d7", label: "Architecture overview", status: "fail", weight: 10, agent: false, detail: "No high-level description of how app/, lib/, and components/ fit together." },
-      { id: "d8", label: "Code examples / usage", status: "warn", weight: 8, agent: true, detail: "README shows one snippet; key utilities have no usage examples." },
-      { id: "d9", label: "License & contributing", status: "pass", weight: 5, agent: false, detail: "LICENSE and CONTRIBUTING.md are present." },
-      { id: "d10", label: "Consistent doc structure", status: "warn", weight: 10, agent: true, detail: "Headings are inconsistent across docs, making automated extraction less reliable." },
+    standards: [
+      {
+        id: "vercel",
+        label: "Agent Readability",
+        tagline: "Vercel's spec for making sites legible to AI agents",
+        source: "Vercel Agent Readability Spec",
+        href: "https://vercel.com/docs/agent-readability",
+        score: 58,
+        weight: 0.35,
+        band: "needs-improvement",
+        checks: [
+          { id: "vr1", group: "Discovery", label: "llms.txt index at root", status: "fail", weight: 12, agent: true, detail: "No /llms.txt to point agents at the most relevant docs and routes. This is the single highest-impact discovery signal.", fix: "Add an llms.txt at the project root following the llmstxt.org format." },
+          { id: "vr2", group: "Discovery", label: "AGENTS.md present", status: "fail", weight: 10, agent: true, detail: "No AGENTS.md describing build/test commands, conventions, and do-not-touch areas for coding agents.", fix: "Create AGENTS.md with setup, commands, architecture, and conventions sections." },
+          { id: "vr3", group: "Discovery", label: "robots.txt allows AI crawlers", status: "na", weight: 6, agent: false, detail: "Requires a live URL to verify that GPTBot, ClaudeBot, PerplexityBot, etc. are not disallowed.", fix: "Provide a docs URL to probe robots.txt." },
+          { id: "vr4", group: "Discovery", label: "sitemap.xml / sitemap.md", status: "na", weight: 6, agent: false, detail: "Requires a live URL to confirm a crawlable sitemap is served.", fix: "Provide a docs URL to probe the sitemap." },
+          { id: "vr5", group: "Structure", label: "Page metadata (title + description)", status: "warn", weight: 8, agent: false, detail: "12 of 18 routes export metadata; 6 fall back to the default title, giving agents weak page context." },
+          { id: "vr6", group: "Structure", label: "Canonical URLs", status: "na", weight: 6, agent: false, detail: "Requires a live URL to verify canonical link tags are present and self-referential." },
+          { id: "vr7", group: "Structure", label: "Structured data (JSON-LD)", status: "fail", weight: 6, agent: false, detail: "No JSON-LD on key pages, so agents can't extract typed entities (products, articles, breadcrumbs).", fix: "Emit JSON-LD via a <script type=\"application/ld+json\"> in the route head." },
+          { id: "vr8", group: "Context", label: "Semantic heading hierarchy", status: "warn", weight: 10, agent: true, detail: "Several docs skip from H1 to H3 or use multiple H1s, which degrades automated outline extraction." },
+          { id: "vr9", group: "Context", label: "Code blocks tagged with language", status: "pass", weight: 8, agent: true, detail: "All fenced code blocks specify a language, so agents can parse and run examples reliably." },
+          { id: "vr10", group: "Context", label: "Markdown route mirrors (.md)", status: "fail", weight: 12, agent: true, detail: "Pages don't expose a clean Markdown mirror (e.g. via content negotiation or .md routes), forcing agents to scrape HTML.", fix: "Serve a Markdown version of each page through content negotiation or a .md route." },
+          { id: "vr11", group: "Context", label: "Descriptive link text", status: "pass", weight: 6, agent: false, detail: "Links use descriptive anchors rather than \"click here\", aiding both screen readers and agents." },
+        ],
+      },
+      {
+        id: "llmstxt",
+        label: "llms.txt Spec",
+        tagline: "Conformance with the llmstxt.org file format",
+        source: "llmstxt.org specification",
+        href: "https://llmstxt.org",
+        score: 22,
+        weight: 0.2,
+        band: "poor",
+        checks: [
+          { id: "lt1", label: "/llms.txt exists", status: "fail", weight: 25, agent: true, detail: "The spec's required entry file is missing at the project root.", fix: "Create /llms.txt." },
+          { id: "lt2", label: "H1 with project name", status: "fail", weight: 10, agent: true, detail: "A single H1 naming the project must be the first line. Cannot pass without the file." },
+          { id: "lt3", label: "Blockquote summary", status: "fail", weight: 10, agent: false, detail: "A short > blockquote summary should follow the H1 to orient the model." },
+          { id: "lt4", label: "H2 sections with link lists", status: "fail", weight: 15, agent: true, detail: "Curated H2 sections (Docs, Examples, Optional) with markdown link lists are required." },
+          { id: "lt5", label: "Each link has a description", status: "fail", weight: 10, agent: false, detail: "Every link should carry a colon-separated description so models can prioritize." },
+          { id: "lt6", label: "Optional section for low-priority links", status: "na", weight: 5, agent: false, detail: "An \"Optional\" section lets agents skip secondary content under tight context budgets." },
+          { id: "lt7", label: "llms-full.txt expanded variant", status: "fail", weight: 10, agent: true, detail: "No llms-full.txt that inlines the full docs corpus for one-shot ingestion.", fix: "Generate llms-full.txt alongside llms.txt." },
+          { id: "lt8", label: "Valid, parseable markdown", status: "na", weight: 15, agent: false, detail: "Cannot validate structure until the file exists." },
+        ],
+      },
+      {
+        id: "farming",
+        label: "Agent Score",
+        tagline: "farming-labs live-surface agent readiness probes",
+        source: "@farming-labs/docs · doctor --agent",
+        href: "https://docs.farming-labs.dev/score",
+        score: 41,
+        weight: 0.2,
+        band: "poor",
+        liveOnly: true,
+        checks: [
+          { id: "fl1", group: "Surfaces", label: "Docs discoverable from root", status: "na", weight: 12, agent: false, detail: "Needs a live URL: checks whether an agent landing on the homepage can find the docs within one hop.", fix: "Set a docs URL to enable live probing." },
+          { id: "fl2", group: "Surfaces", label: "llms.txt served over HTTP", status: "fail", weight: 14, agent: true, detail: "No llms.txt in the repo, so the deployed site will return 404 for /llms.txt." },
+          { id: "fl3", group: "Surfaces", label: "sitemap.xml / sitemap.md", status: "na", weight: 10, agent: false, detail: "Requires a live URL to fetch the sitemap." },
+          { id: "fl4", group: "Surfaces", label: "robots.txt not blocking AI", status: "na", weight: 10, agent: false, detail: "Requires a live URL to confirm AI user-agents aren't disallowed." },
+          { id: "fl5", group: "Surfaces", label: "AGENTS.md served", status: "fail", weight: 12, agent: true, detail: "No AGENTS.md in the repo to serve at /AGENTS.md." },
+          { id: "fl6", group: "Surfaces", label: "skill.md present", status: "fail", weight: 8, agent: true, detail: "No skill.md describing reusable agent skills/workflows for this project.", fix: "Add a skill.md documenting common agent tasks." },
+          { id: "fl7", group: "Surfaces", label: ".md route mirrors (content negotiation)", status: "na", weight: 14, agent: true, detail: "Requires a live URL to test whether pages return Markdown when requested with text/markdown." },
+          { id: "fl8", group: "Surfaces", label: "MCP endpoint exposed", status: "fail", weight: 10, agent: true, detail: "No Model Context Protocol endpoint advertised for structured tool access to the docs.", fix: "Expose an MCP server or .well-known/mcp descriptor." },
+          { id: "fl9", group: "Freshness", label: "Docs freshness / compaction", status: "warn", weight: 10, agent: false, detail: "Several docs reference APIs that changed two releases ago; agents may surface stale guidance." },
+        ],
+      },
+      {
+        id: "quality",
+        label: "Documentation Quality",
+        tagline: "Human-facing completeness and readability",
+        source: "CodeLens quality rubric (readme-doctor + Vale)",
+        href: "https://github.com/vercel-labs/codelens",
+        score: 70,
+        weight: 0.25,
+        band: "good",
+        checks: [
+          { id: "ql1", label: "README quick-start", status: "pass", weight: 12, agent: false, detail: "Install and dev commands are present and runnable." },
+          { id: "ql2", label: "Architecture overview", status: "fail", weight: 10, agent: false, detail: "No high-level description of how app/, lib/, and components/ fit together.", fix: "Add an Architecture section or docs/architecture.md." },
+          { id: "ql3", label: "Environment variables documented", status: "warn", weight: 10, agent: true, detail: ".env.example exists but 3 used variables are undocumented and none have descriptions." },
+          { id: "ql4", label: "Public API / JSDoc coverage", status: "warn", weight: 12, agent: true, detail: "Only 38% of exported functions have JSDoc. Typed, documented signatures help agents infer intent." },
+          { id: "ql5", label: "Usage examples", status: "warn", weight: 8, agent: false, detail: "README shows one snippet; key utilities have no usage examples." },
+          { id: "ql6", label: "CONTRIBUTING present", status: "pass", weight: 6, agent: false, detail: "CONTRIBUTING.md documents the PR flow." },
+          { id: "ql7", label: "LICENSE present", status: "pass", weight: 5, agent: false, detail: "An MIT LICENSE is present at the root." },
+          { id: "ql8", label: "CHANGELOG present", status: "fail", weight: 6, agent: false, detail: "No CHANGELOG.md — release history is undocumented.", fix: "Adopt Keep a Changelog or generate one from conventional commits." },
+          { id: "ql9", label: "Readability (Flesch-Kincaid ≤ 12)", status: "pass", weight: 8, agent: false, detail: "Prose reads at a grade-10 level — accessible without being oversimplified." },
+          { id: "ql10", label: "No broken relative links", status: "warn", weight: 8, agent: false, detail: "2 relative links in docs/api.md point to files that no longer exist." },
+          { id: "ql11", label: "Consistent heading structure", status: "warn", weight: 10, agent: true, detail: "Headings are inconsistent across docs, reducing automated-extraction reliability." },
+        ],
+      },
+    ],
+  },
+
+  database: {
+    counts: { connections: 3, collections: 27, findings: 9, slowQueries: 4 },
+    connections: [
+      {
+        id: "db1",
+        engine: "postgres",
+        name: "storefront",
+        client: "Drizzle ORM (postgres-js)",
+        host: "db.neon.tech",
+        ssl: true,
+        pooled: true,
+        envVar: "DATABASE_URL",
+        collections: 14,
+        filePath: "lib/db.ts",
+      },
+      {
+        id: "db2",
+        engine: "mongodb",
+        name: "analytics",
+        client: "mongoose",
+        host: "cluster0.mongodb.net",
+        ssl: true,
+        pooled: false,
+        envVar: "MONGODB_URI",
+        collections: 9,
+        filePath: "lib/mongo.ts",
+      },
+      {
+        id: "db3",
+        engine: "redis",
+        name: "cache",
+        client: "ioredis",
+        host: "redis://localhost:6379",
+        ssl: false,
+        pooled: true,
+        envVar: "REDIS_URL",
+        collections: 4,
+        filePath: "lib/cache.ts",
+      },
+    ],
+    findings: [
+      {
+        id: "dbf1",
+        engine: "postgres",
+        kind: "n+1",
+        severity: "high",
+        title: "N+1 query loading order line items",
+        detail:
+          "The order list maps over orders and awaits a separate `lineItems` query per row. A 50-order page fires 51 round-trips to Postgres.",
+        filePath: "app/dashboard/orders/page.tsx",
+        line: 38,
+        target: "line_items",
+        recommendation:
+          "Fetch line items in a single query with a JOIN or `inArray(orderIds)`, then group in memory.",
+        snippet: {
+          startLine: 37,
+          code: "  const orders = await db.select().from(ordersTable)\n  for (const o of orders) {\n    o.items = await db.select().from(lineItems).where(eq(lineItems.orderId, o.id))\n  }",
+        },
+      },
+      {
+        id: "dbf2",
+        engine: "postgres",
+        kind: "missing-index",
+        severity: "high",
+        title: "Sequential scan on orders.email",
+        detail:
+          "`orders` is filtered by `email` on the lookup path but has no index on that column. EXPLAIN shows a full sequential scan over ~1.2M rows.",
+        filePath: "lib/queries/orders.ts",
+        line: 14,
+        target: "orders",
+        recommendation: "Add `CREATE INDEX CONCURRENTLY orders_email_idx ON orders (email);` via a migration.",
+      },
+      {
+        id: "dbf3",
+        engine: "mongodb",
+        kind: "unbounded-query",
+        severity: "high",
+        title: "Unbounded find() on events collection",
+        detail:
+          "`Event.find({ type })` returns every matching document with no `.limit()` or pagination. The events collection has 4.6M documents and grows daily.",
+        filePath: "lib/mongo.ts",
+        line: 52,
+        target: "events",
+        recommendation: "Add `.limit()` with cursor-based pagination and project only required fields.",
+        snippet: {
+          startLine: 52,
+          code: "  const events = await Event.find({ type }).sort({ createdAt: -1 })",
+        },
+      },
+      {
+        id: "dbf4",
+        engine: "mongodb",
+        kind: "missing-index",
+        severity: "medium",
+        title: "No compound index for events query pattern",
+        detail:
+          "Events are queried by `{ type, createdAt }` but only a single-field index on `type` exists, forcing an in-memory sort that can exceed the 32MB sort limit.",
+        filePath: "lib/models/event.ts",
+        line: 21,
+        target: "events",
+        recommendation: "Create a compound index `{ type: 1, createdAt: -1 }` matching the query and sort order.",
+      },
+      {
+        id: "dbf5",
+        engine: "mongodb",
+        kind: "no-validation",
+        severity: "medium",
+        title: "Collection has no schema validation",
+        detail:
+          "The `events` collection accepts arbitrary shapes — there is no `$jsonSchema` validator and the mongoose schema uses `strict: false`, allowing malformed analytics rows.",
+        filePath: "lib/models/event.ts",
+        line: 8,
+        target: "events",
+        recommendation: "Enable strict mode in mongoose and attach a $jsonSchema validator to the collection.",
+      },
+      {
+        id: "dbf6",
+        engine: "postgres",
+        kind: "injection",
+        severity: "critical",
+        title: "Raw SQL built from request input",
+        detail:
+          "`db.execute(sql.raw(...))` interpolates the `email` query param directly into the statement, allowing SQL injection.",
+        filePath: "app/api/orders/route.ts",
+        line: 31,
+        target: "orders",
+        recommendation: "Use parameterized template literals (`sql\`... ${email}\``) instead of `sql.raw` with string concatenation.",
+        snippet: {
+          startLine: 31,
+          code: "  const email = req.nextUrl.searchParams.get('email')\n  await db.execute(sql.raw(`SELECT * FROM orders WHERE email = '${email}'`))",
+        },
+      },
+      {
+        id: "dbf7",
+        engine: "mongodb",
+        kind: "no-pooling",
+        severity: "medium",
+        title: "New Mongo connection per request",
+        detail:
+          "`mongoose.connect()` is called inside the request handler rather than once at module scope, opening a fresh connection on every invocation and exhausting the Atlas connection limit under load.",
+        filePath: "lib/mongo.ts",
+        line: 11,
+        recommendation: "Cache the connection promise at module scope (global singleton) and reuse it across requests.",
+      },
+      {
+        id: "dbf8",
+        engine: "redis",
+        kind: "missing-ttl",
+        severity: "low",
+        title: "Cache keys written without TTL",
+        detail:
+          "`redis.set(key, value)` is used without an expiry for product cache entries, so stale data accumulates and memory grows unbounded.",
+        filePath: "lib/cache.ts",
+        line: 24,
+        target: "product:*",
+        recommendation: "Set an explicit TTL: `redis.set(key, value, 'EX', 3600)`.",
+      },
+      {
+        id: "dbf9",
+        engine: "redis",
+        kind: "no-ssl",
+        severity: "medium",
+        title: "Redis connection is not encrypted",
+        detail:
+          "REDIS_URL uses the plaintext `redis://` scheme. Cache traffic — including session tokens — crosses the network unencrypted.",
+        filePath: "lib/cache.ts",
+        line: 6,
+        recommendation: "Use the `rediss://` TLS scheme and verify the server certificate.",
+      },
+    ],
+    queries: [
+      {
+        id: "q1",
+        engine: "postgres",
+        operation: "SELECT",
+        target: "orders",
+        filePath: "lib/queries/orders.ts",
+        line: 14,
+        estMs: 1840,
+        fullScan: true,
+        note: "Sequential scan over orders filtered by email — add an index.",
+      },
+      {
+        id: "q2",
+        engine: "mongodb",
+        operation: "find",
+        target: "events",
+        filePath: "lib/mongo.ts",
+        line: 52,
+        estMs: 2600,
+        fullScan: true,
+        note: "Unbounded find with in-memory sort; no compound index.",
+      },
+      {
+        id: "q3",
+        engine: "postgres",
+        operation: "SELECT",
+        target: "line_items",
+        filePath: "app/dashboard/orders/page.tsx",
+        line: 38,
+        estMs: 920,
+        fullScan: false,
+        note: "Fired 51× per page render (N+1).",
+      },
+      {
+        id: "q4",
+        engine: "mongodb",
+        operation: "aggregate",
+        target: "events",
+        filePath: "lib/analytics.ts",
+        line: 73,
+        estMs: 1450,
+        fullScan: true,
+        note: "$group stage spills to disk; allowDiskUse without index.",
+      },
+      {
+        id: "q5",
+        engine: "redis",
+        operation: "GET",
+        target: "product:*",
+        filePath: "lib/cache.ts",
+        line: 24,
+        estMs: 3,
+        fullScan: false,
+        note: "Healthy — sub-millisecond cache reads.",
+      },
     ],
   },
 }

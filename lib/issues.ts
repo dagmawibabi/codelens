@@ -5,9 +5,9 @@ import type {
   DependencyFinding,
   Severity,
 } from "./schema"
-import type { EnvVariable, NetworkCall, GitIssue } from "./project-insights"
+import type { EnvVariable, NetworkCall, GitIssue, DbFinding } from "./project-insights"
 
-export type IssueSource = "lint" | "types" | "security" | "deps" | "env" | "network" | "git"
+export type IssueSource = "lint" | "types" | "security" | "deps" | "env" | "network" | "git" | "database"
 
 /** A normalized issue used by the shared detail sheet. */
 export interface Issue {
@@ -61,6 +61,12 @@ export interface Issue {
     secure: boolean
     external: boolean
     issues: { kind: string; severity: Severity; message: string }[]
+  }
+  /** Database-finding metadata, present when source === "database". */
+  db?: {
+    engine: string
+    kind: string
+    target?: string
   }
 }
 
@@ -196,6 +202,21 @@ export function networkToIssue(c: NetworkCall): Issue {
       (c.issues.length ? ` ${c.issues.length} issue${c.issues.length === 1 ? "" : "s"} detected.` : " No issues detected."),
     recommendation: c.issues.map((i) => i.message).join(" "),
     net: { url: c.url, host: c.host, method: c.method, client: c.client, secure: c.secure, external: c.external, issues: c.issues },
+  }
+}
+
+export function dbToIssue(f: DbFinding): Issue {
+  return {
+    source: "database",
+    severity: f.severity,
+    title: f.title,
+    filePath: f.filePath,
+    line: f.line ?? 1,
+    category: f.kind,
+    description: f.detail,
+    recommendation: f.recommendation,
+    snippet: f.snippet,
+    db: { engine: f.engine, kind: f.kind, target: f.target },
   }
 }
 
@@ -347,6 +368,33 @@ export function issueDocs(issue: Issue): DocLink[] {
     )
     if (issue.net && !issue.net.secure) {
       links.push({ label: "MDN: Mixed content", href: "https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content", kind: "MDN" })
+    }
+  }
+
+  if (issue.source === "database") {
+    const engine = issue.db?.engine
+    if (engine === "mongodb") {
+      links.push(
+        { label: "MongoDB: Indexing Strategies", href: "https://www.mongodb.com/docs/manual/applications/indexes/", kind: "MongoDB" },
+        { label: "MongoDB: Query Optimization", href: "https://www.mongodb.com/docs/manual/core/query-optimization/", kind: "MongoDB" },
+        { label: "Mongoose: Connections", href: "https://mongoosejs.com/docs/connections.html", kind: "Mongoose" },
+      )
+    } else if (engine === "redis") {
+      links.push(
+        { label: "Redis: Key expiration (TTL)", href: "https://redis.io/docs/latest/develop/use/keyspace/#key-expiration", kind: "Redis" },
+        { label: "Redis: TLS support", href: "https://redis.io/docs/latest/operate/oss_and_stack/management/security/encryption/", kind: "Redis" },
+      )
+    } else {
+      links.push(
+        { label: "PostgreSQL: Using EXPLAIN", href: "https://www.postgresql.org/docs/current/using-explain.html", kind: "PostgreSQL" },
+        { label: "PostgreSQL: Indexes", href: "https://www.postgresql.org/docs/current/indexes.html", kind: "PostgreSQL" },
+      )
+    }
+    if (issue.db?.kind === "injection") {
+      links.push({ label: "OWASP: SQL Injection Prevention", href: "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html", kind: "OWASP" })
+    }
+    if (issue.db?.kind === "n+1") {
+      links.push({ label: "The N+1 query problem", href: "https://planetscale.com/blog/what-is-n-1-query-problem-and-how-to-solve-it", kind: "PlanetScale" })
     }
   }
 
