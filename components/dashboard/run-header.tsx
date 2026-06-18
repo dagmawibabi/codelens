@@ -1,6 +1,7 @@
 "use client"
 
-import { Play, Loader2, Check, Minus, Terminal, Sparkles } from "lucide-react"
+import Link from "next/link"
+import { Play, Loader2, Check, Minus, Terminal, Sparkles, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HelpDialog } from "./help-dialog"
 import { ThemeToggle } from "./theme-toggle"
@@ -101,6 +102,13 @@ export function RunHeader({ project, aiEnabled, running, phases, durationMs, onR
             {running ? "Running…" : "Run checks"}
           </button>
           <HelpDialog />
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className="inline-flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Settings className="size-4" />
+          </Link>
           <ThemeToggle />
         </div>
       </div>
