@@ -2,10 +2,14 @@ import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { promises as fsp } from 'node:fs'
 import type {
   DependencyVuln,
+  LintResult,
   ProjectInfo,
   SecurityFinding,
+  SecurityResult,
+  TypeCheckResult,
 } from '../types.js'
 
 /**
@@ -142,3 +146,94 @@ about low real-world risk for transitive/build-only packages.`,
     return ai ? { ...v, impact: ai.impact, severity: ai.severity } : v
   })
 }
+
+/* ----------------------------- File selection ----------------------------- */
+
+const SECURITY_RELEVANT = [
+  /\/api\//,
+  /\/(server|actions)\//,
+  /\.server\./,
+  /route\.(t|j)sx?$/,
+  /middleware\.(t|j)s$/,
+  /\/(auth|lib|utils|db|database)\//,
+  /\+page\.server\./, // SvelteKit
+  /\+server\./, // SvelteKit
+]
+
+const IGNORE_DIRS = new Set([
+  'node_modules',
+  '.next',
+  '.git',
+  'dist',
+  'build',
+  '.svelte-kit',
+  'coverage',
+  '.codelens',
+])
+
+const MAX_FILES = 25
+const MAX_FILE_BYTES = 24_000
+
+/** Walk the project and pick the most security-relevant source files. */
+async function selectFiles(root: string): Promise<string[]> {
+  const picked: string[] = []
+
+  async function walk(dir: string) {
+    if (picked.length >= MAX_FILES) return
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (picked.length >= MAX_FILES) return
+      if (entry.isDirectory()) {
+        if (IGNORE_DIRS.has(entry.name) || entry.name.startsWith('.')) continue
+        await walk(join(dir, entry.name))
+      } else if (/\.(t|j)sx?$|\.vue$|\.svelte$/.test(entry.name)) {
+        const full = join(dir, entry.name)
+        const rel = full.slice(root.length + 1)
+        if (SECURITY_RELEVANT.some((re) => re.test('/' + rel))) {
+          picked.push(rel)
+        }
+      }
+    }
+  }
+
+  await walk(root)
+  return picked
+}
+
+/* ----------------------------- Orchestration ----------------------------- */
+
+/**
+ * Top-level security pass used by the run pipeline. Selects relevant source
+ * files, runs the AI code review, and layers AI prioritization onto the real
+ * dependency advisories. Returns a complete SecurityResult.
+ */
+export async function runSecurityAudit(args: {
+  cwd: string
+  project: ProjectInfo
+  advisories: DependencyVuln[]
+  lint: LintResult
+  types: TypeCheckResult
+}): Promise<SecurityResult> {
+  const { project, advisories } = args
+
+  if (!aiEnabled()) {
+    return { findings: [], dependencies: advisories, skipped: true }
+  }
+
+  const files = await selectFiles(project.root)
+
+  const [findings, dependencies] = await Promise.all([
+    auditCode(project, files),
+    prioritizeDependencies(project, advisories),
+  ])
+
+  return { findings, dependencies, skipped: false }
+}
+
+// Silence unused-import warnings for fields reserved for future heuristics.
+void MAX_FILE_BYTES
