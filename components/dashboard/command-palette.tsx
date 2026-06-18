@@ -10,6 +10,7 @@ import {
   FileText,
   ShieldAlert,
   Package,
+  Database,
   KeyRound,
   Globe,
   GitBranch,
@@ -37,6 +38,7 @@ import {
   envToIssue,
   networkToIssue,
   gitToIssue,
+  dbToIssue,
   type Issue,
 } from "@/lib/issues"
 import type { AnalysisReport } from "@/lib/schema"
@@ -81,6 +83,7 @@ export function CommandPalette({
     report.types.diagnostics.forEach((d, i) => out.push({ id: `type-${i}`, issue: typeToIssue(d), group: "Types", icon: Braces }))
     report.security.findings.forEach((f) => out.push({ id: `sec-${f.id}`, issue: securityToIssue(f), group: "Security", icon: ShieldAlert }))
     report.deps.findings.forEach((d) => out.push({ id: `dep-${d.id}`, issue: depToIssue(d), group: "Dependencies", icon: Package }))
+    insights.database.findings.forEach((f) => out.push({ id: `db-${f.id}`, issue: dbToIssue(f), group: "Database", icon: Database }))
     insights.env.variables.forEach((v) => out.push({ id: `env-${v.key}`, issue: envToIssue(v), group: "Environment", icon: KeyRound }))
     insights.network.calls.forEach((c) => out.push({ id: `net-${c.id}`, issue: networkToIssue(c), group: "Network", icon: Globe }))
     insights.git.issues.forEach((g) => out.push({ id: `git-${g.id}`, issue: gitToIssue(g), group: "Git", icon: GitBranch }))

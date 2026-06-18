@@ -1,12 +1,13 @@
 "use client"
 
-import { BookOpen, Bot, FileText, Check, AlertTriangle, X } from "lucide-react"
+import { useMemo, useState } from "react"
+import { BookOpen, Bot, FileText, Check, AlertTriangle, X, Minus, ExternalLink, Wrench } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { InsightCard } from "./insights"
 import { FileLink } from "./inspector"
-import type { DocsResult, DocCheck, DocCheckStatus, DocFile } from "@/lib/project-insights"
+import type { DocsResult, DocCheck, DocCheckStatus, DocFile, DocStandard, DocBand } from "@/lib/project-insights"
 import { cn } from "@/lib/utils"
 
 function checkVisual(status: DocCheckStatus) {
@@ -15,13 +16,26 @@ function checkVisual(status: DocCheckStatus) {
       return { Icon: Check, color: "var(--sev-ok)", label: "Pass" }
     case "warn":
       return { Icon: AlertTriangle, color: "var(--sev-medium)", label: "Warn" }
+    case "na":
+      return { Icon: Minus, color: "var(--muted-foreground)", label: "N/A" }
     default:
       return { Icon: X, color: "var(--sev-critical)", label: "Fail" }
   }
 }
 
+const BAND_LABEL: Record<DocBand, string> = {
+  excellent: "Excellent",
+  good: "Good",
+  "needs-improvement": "Needs improvement",
+  poor: "Poor",
+}
+
+function scoreColor(score: number) {
+  return score >= 80 ? "var(--sev-ok)" : score >= 60 ? "var(--sev-medium)" : score >= 40 ? "var(--sev-high)" : "var(--sev-critical)"
+}
+
 function ScoreDial({ score, label, sub }: { score: number; label: string; sub: string }) {
-  const color = score >= 80 ? "var(--sev-ok)" : score >= 60 ? "var(--sev-medium)" : "var(--sev-high)"
+  const color = scoreColor(score)
   return (
     <div className="flex flex-col items-center gap-2 p-6">
       <div className="relative flex size-28 items-center justify-center">
@@ -46,6 +60,56 @@ function ScoreDial({ score, label, sub }: { score: number; label: string; sub: s
   )
 }
 
+function StandardCard({
+  standard,
+  active,
+  onSelect,
+}: {
+  standard: DocStandard
+  active: boolean
+  onSelect: () => void
+}) {
+  const color = scoreColor(standard.score)
+  const passing = standard.checks.filter((c) => c.status === "pass").length
+  const applicable = standard.checks.filter((c) => c.status !== "na").length
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "flex flex-col gap-3 rounded-md border bg-card p-4 text-left transition-colors",
+        active ? "border-ring ring-1 ring-ring" : "border-border hover:bg-secondary/40",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-semibold text-foreground">{standard.label}</span>
+            {standard.liveOnly && (
+              <span className="shrink-0 rounded-sm border border-border px-1 py-0.5 font-mono text-[9px] uppercase text-muted-foreground">
+                live
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-pretty text-[11px] leading-snug text-muted-foreground">
+            {standard.tagline}
+          </p>
+        </div>
+        <span className="shrink-0 font-mono text-2xl font-semibold tabular-nums" style={{ color }}>
+          {standard.score}
+        </span>
+      </div>
+      <Progress value={standard.score} className="h-1.5" />
+      <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+        <span>{BAND_LABEL[standard.band]}</span>
+        <span>
+          {passing}/{applicable} pass · {Math.round(standard.weight * 100)}% wt
+        </span>
+      </div>
+    </button>
+  )
+}
+
 function CheckRow({ check }: { check: DocCheck }) {
   const vis = checkVisual(check.status)
   return (
@@ -60,9 +124,17 @@ function CheckRow({ check }: { check: DocCheck }) {
               agent
             </span>
           )}
-          <span className="ml-auto font-mono text-[10px] text-muted-foreground">+{check.weight}</span>
+          <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+            {check.status === "na" ? "n/a" : `+${check.weight}`}
+          </span>
         </div>
         <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">{check.detail}</p>
+        {check.fix && (
+          <p className="mt-1.5 inline-flex items-start gap-1.5 text-pretty text-xs leading-relaxed text-foreground">
+            <Wrench className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+            <span>{check.fix}</span>
+          </p>
+        )}
       </div>
     </div>
   )
@@ -81,10 +153,7 @@ function DocFileRow({ doc }: { doc: DocFile }) {
         <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{doc.note}</p>
       </div>
       {doc.present ? (
-        <span
-          className="shrink-0 font-mono text-xs tabular-nums"
-          style={{ color: doc.score >= 70 ? "var(--sev-ok)" : doc.score >= 50 ? "var(--sev-medium)" : "var(--sev-high)" }}
-        >
+        <span className="shrink-0 font-mono text-xs tabular-nums" style={{ color: scoreColor(doc.score) }}>
           {doc.score}
         </span>
       ) : (
@@ -94,15 +163,75 @@ function DocFileRow({ doc }: { doc: DocFile }) {
   )
 }
 
+function StandardSection({ standard }: { standard: DocStandard }) {
+  // Group checks by their optional `group` label, preserving order.
+  const groups = useMemo(() => {
+    const map = new Map<string, DocCheck[]>()
+    for (const c of standard.checks) {
+      const key = c.group ?? ""
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(c)
+    }
+    return [...map.entries()]
+  }, [standard.checks])
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <BookOpen className="size-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold text-foreground">{standard.label}</h3>
+        <span className="font-mono text-xs tabular-nums" style={{ color: scoreColor(standard.score) }}>
+          {standard.score}
+        </span>
+        <a
+          href={standard.href}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {standard.source}
+          <ExternalLink className="size-3" />
+        </a>
+      </div>
+      {groups.map(([group, checks]) => (
+        <div key={group || standard.id} className="flex flex-col gap-2">
+          {group && (
+            <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{group}</span>
+          )}
+          <Card className="gap-0 overflow-hidden py-0">
+            {checks.map((c) => (
+              <CheckRow key={c.id} check={c} />
+            ))}
+          </Card>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export function DocsPanel({ docs }: { docs: DocsResult }) {
-  const agentChecks = docs.checks.filter((c) => c.agent)
-  const passing = docs.checks.filter((c) => c.status === "pass").length
+  const [selected, setSelected] = useState<string>("all")
+
+  const allChecks = useMemo(() => docs.standards.flatMap((s) => s.checks), [docs.standards])
+  const agentChecks = useMemo(() => allChecks.filter((c) => c.agent), [allChecks])
+  const passing = allChecks.filter((c) => c.status === "pass").length
+  const applicable = allChecks.filter((c) => c.status !== "na").length
+  const agentPassing = agentChecks.filter((c) => c.status === "pass").length
+  const agentApplicable = agentChecks.filter((c) => c.status !== "na").length
+
+  const visibleStandards = selected === "all" ? docs.standards : docs.standards.filter((s) => s.id === selected)
+
+  const tabs = [{ id: "all", label: "All standards" }, ...docs.standards.map((s) => ({ id: s.id, label: s.label }))]
 
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
       <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
         <Card className="flex flex-col items-center gap-1 py-0">
-          <ScoreDial score={docs.score} label={`Documentation · ${docs.grade}`} sub={`${passing} of ${docs.checks.length} checks passing`} />
+          <ScoreDial
+            score={docs.score}
+            label={`Docs Benchmark · ${docs.grade}`}
+            sub={`${BAND_LABEL[docs.band]} — ${passing}/${applicable} checks passing`}
+          />
         </Card>
 
         <InsightCard
@@ -111,7 +240,9 @@ export function DocsPanel({ docs }: { docs: DocsResult }) {
             <span
               className={cn(
                 "rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase",
-                docs.agentReady ? "bg-[color:var(--sev-ok)]/15 text-[color:var(--sev-ok)]" : "bg-[color:var(--sev-high)]/15 text-[color:var(--sev-high)]",
+                docs.agentReady
+                  ? "bg-[color:var(--sev-ok)]/15 text-[color:var(--sev-ok)]"
+                  : "bg-[color:var(--sev-high)]/15 text-[color:var(--sev-high)]",
               )}
             >
               {docs.agentReady ? "Ready" : "Not ready"}
@@ -127,9 +258,15 @@ export function DocsPanel({ docs }: { docs: DocsResult }) {
             </div>
             <Progress value={docs.agentScore} className="h-1.5" />
             <p className="text-xs leading-relaxed text-muted-foreground">
-              {agentChecks.filter((c) => c.status === "pass").length}/{agentChecks.length} agent-readiness checks pass.
-              Adding AGENTS.md and llms.txt has the highest impact.
+              {agentPassing}/{agentApplicable} agent-readiness checks pass across all standards. Adding AGENTS.md and
+              llms.txt has the highest impact.
             </p>
+            {!docs.liveUrl && (
+              <p className="rounded-sm border border-border bg-secondary/30 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                No live docs URL set. Surface-level checks (robots, sitemap, .md mirrors, MCP) are marked N/A and
+                excluded from scoring.
+              </p>
+            )}
           </div>
         </InsightCard>
 
@@ -145,33 +282,42 @@ export function DocsPanel({ docs }: { docs: DocsResult }) {
       <div className="flex min-w-0 flex-col gap-6">
         <section className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <Bot className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">Agent-readiness checks</h3>
+            <h3 className="text-sm font-semibold text-foreground">Benchmark composition</h3>
             <Badge variant="secondary" className="font-mono text-xs">
-              {agentChecks.length}
+              {docs.standards.length} standards
             </Badge>
           </div>
-          <Card className="gap-0 overflow-hidden py-0">
-            {agentChecks.map((c) => (
-              <CheckRow key={c.id} check={c} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {docs.standards.map((s) => (
+              <StandardCard
+                key={s.id}
+                standard={s}
+                active={selected === s.id}
+                onSelect={() => setSelected((p) => (p === s.id ? "all" : s.id))}
+              />
             ))}
-          </Card>
+          </div>
         </section>
 
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <BookOpen className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">All documentation checks</h3>
-            <Badge variant="secondary" className="font-mono text-xs">
-              {docs.checks.length}
-            </Badge>
-          </div>
-          <Card className="gap-0 overflow-hidden py-0">
-            {docs.checks.map((c) => (
-              <CheckRow key={c.id} check={c} />
-            ))}
-          </Card>
-        </section>
+        <div className="flex flex-wrap items-center gap-1 rounded-sm border border-border bg-card p-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSelected(t.id)}
+              className={cn(
+                "rounded-sm px-3 py-1.5 text-sm transition-colors",
+                selected === t.id ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {visibleStandards.map((s) => (
+          <StandardSection key={s.id} standard={s} />
+        ))}
       </div>
     </div>
   )

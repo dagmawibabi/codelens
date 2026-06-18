@@ -7,6 +7,7 @@ import {
   Braces,
   ShieldAlert,
   Package,
+  Database,
   KeyRound,
   Globe,
   GitBranch,
@@ -22,6 +23,7 @@ import { LintPanel } from "./lint-panel"
 import { TypesPanel } from "./types-panel"
 import { SecurityPanel } from "./security-panel"
 import { DependenciesPanel } from "./dependencies-panel"
+import { DatabasePanel } from "./database-panel"
 import { EnvPanel } from "./env-panel"
 import { NetworkPanel } from "./network-panel"
 import { GitPanel } from "./git-panel"
@@ -34,14 +36,15 @@ import type { ProjectInsights } from "@/lib/project-insights"
 
 const TABS: TabDef[] = [
   { value: "overview", label: "Overview", icon: LayoutDashboard },
+  { value: "setup", label: "Setup", icon: Settings2 },
   { value: "lint", label: "Lint", icon: FileText },
   { value: "types", label: "Types", icon: Braces },
   { value: "security", label: "Security", icon: ShieldAlert },
   { value: "deps", label: "Dependencies", icon: Package },
+  { value: "database", label: "Database", icon: Database },
   { value: "env", label: "Environment", icon: KeyRound },
   { value: "network", label: "Network", icon: Globe },
   { value: "git", label: "Git & CI/CD", icon: GitBranch },
-  { value: "setup", label: "Setup", icon: Settings2 },
   { value: "docs", label: "Docs", icon: BookOpen },
 ]
 
@@ -63,10 +66,13 @@ export function Dashboard({
     types: types.diagnostics.length,
     security: security.findings.length,
     deps: deps.findings.length,
+    database: insights.database.findings.length,
     env: insights.env.counts.issues,
     network: insights.network.counts.issues,
     git: insights.git.issues.length + insights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
-    docs: insights.docs.checks.filter((c) => c.status !== "pass").length,
+    docs: insights.docs.standards
+      .flatMap((s) => s.checks)
+      .filter((c) => c.status === "fail" || c.status === "warn").length,
   }
 
   const selectTab = useCallback((value: string) => setTab(value), [])
@@ -155,6 +161,9 @@ export function Dashboard({
             </TabsContent>
             <TabsContent value="deps">
               <DependenciesPanel deps={deps} />
+            </TabsContent>
+            <TabsContent value="database">
+              <DatabasePanel database={insights.database} />
             </TabsContent>
             <TabsContent value="env">
               <EnvPanel env={insights.env} />
