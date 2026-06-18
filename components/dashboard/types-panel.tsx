@@ -7,10 +7,9 @@ import { InsightCard, CountList } from "./insights"
 import { FileLink, useInspector } from "./inspector"
 import { typeToIssue } from "@/lib/issues"
 import type { TypeCheckResult, TypeDiagnostic } from "@/lib/schema"
-import { cn } from "@/lib/utils"
 
 function DiagnosticItem({ diag }: { diag: TypeDiagnostic }) {
-  const [open, setOpen] = useState(false)
+  const { viewIssue } = useInspector()
   const hasChain = diag.related.length > 0
 
   return (
@@ -27,48 +26,26 @@ function DiagnosticItem({ diag }: { diag: TypeDiagnostic }) {
         }}
         className="flex w-full cursor-pointer items-start gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
       >
-        <ChevronRight
-          className={cn(
-            "mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-90",
-            !hasChain && "opacity-0",
-          )}
-        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
             <FileCode2 className="size-3.5 shrink-0" />
-            <span className="truncate text-foreground">{diag.filePath}</span>
-            <span className="text-[color:var(--sev-high)]">
-              {diag.line}:{diag.column}
-            </span>
-            <span className="ml-auto shrink-0 rounded-sm bg-[color:var(--sev-high)]/12 px-1.5 py-0.5 text-[color:var(--sev-high)]">
-              {diag.code}
+            <FileLink path={diag.filePath} line={diag.line} column={diag.column} />
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+              {hasChain && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <ListTree className="size-3.5" />
+                  {diag.related.length}
+                </span>
+              )}
+              <span className="rounded-sm bg-[color:var(--sev-high)]/12 px-1.5 py-0.5 text-[color:var(--sev-high)]">
+                {diag.code}
+              </span>
             </span>
           </div>
           <p className="mt-1.5 text-pretty text-sm leading-relaxed text-foreground">{diag.message}</p>
         </div>
-      </button>
-
-      {open && hasChain && (
-        <div className="border-t border-border bg-secondary/20 px-4 py-3">
-          <ol className="relative ml-2 border-l border-border">
-            {diag.related.map((step, i) => (
-              <li
-                key={i}
-                className="relative py-1.5 text-sm leading-relaxed text-muted-foreground"
-                style={{ paddingLeft: `${step.depth * 12 + 20}px` }}
-              >
-                <span
-                  className="absolute top-3 size-1.5 rounded-full bg-muted-foreground/40"
-                  style={{ left: `${step.depth * 12 + 4}px` }}
-                  aria-hidden
-                />
-                {step.message}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+        <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      </div>
     </Card>
   )
 }

@@ -17,10 +17,17 @@ function FindingRow({ finding }: { finding: SecurityFinding }) {
 
   return (
     <Card className={cn("gap-0 overflow-hidden border-l-2 py-0", sev.border)}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => viewIssue(securityToIssue(finding))}
-        className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            viewIssue(securityToIssue(finding))
+          }
+        }}
+        className="flex w-full cursor-pointer items-start gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
       >
         <ShieldAlert className={cn("mt-0.5 size-4 shrink-0", sev.text)} />
         <div className="min-w-0 flex-1">
@@ -40,7 +47,7 @@ function FindingRow({ finding }: { finding: SecurityFinding }) {
           </p>
         </div>
         <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      </button>
+      </div>
     </Card>
   )
 }

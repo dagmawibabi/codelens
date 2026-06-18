@@ -27,10 +27,17 @@ function FindingRow({ dep }: { dep: DependencyFinding }) {
   const sev = severityStyle(dep.severity)
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => viewIssue(depToIssue(dep))}
-      className="flex w-full flex-col gap-2 border-t border-border p-4 text-left transition-colors first:border-t-0 hover:bg-secondary/40 sm:flex-row sm:items-start sm:gap-4"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          viewIssue(depToIssue(dep))
+        }
+      }}
+      className="flex w-full cursor-pointer flex-col gap-2 border-t border-border p-4 text-left transition-colors first:border-t-0 hover:bg-secondary/40 sm:flex-row sm:items-start sm:gap-4"
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <Package className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -68,7 +75,7 @@ function FindingRow({ dep }: { dep: DependencyFinding }) {
           {dep.current} <ArrowUpRight className="size-3" /> {dep.fixedIn}
         </div>
       )}
-    </button>
+    </div>
   )
 }
 
