@@ -29,6 +29,19 @@ export interface Issue {
   snippet?: { startLine: number; code: string }
   /** Primary external reference label + url. */
   reference?: string
+  /** CVE identifiers (security + deps). */
+  cves?: string[]
+  /** Dependency-specific metadata, present when source === "deps". */
+  dep?: {
+    name: string
+    current: string
+    latest?: string
+    fixedIn?: string
+    type: string
+    kind: string
+    license?: string
+    usedIn?: string[]
+  }
 }
 
 export interface DocLink {
@@ -101,6 +114,17 @@ export function depToIssue(d: DependencyFinding): Issue {
     description: d.detail,
     recommendation: d.recommendation,
     reference: d.reference,
+    cves: d.cves,
+    dep: {
+      name: d.name,
+      current: d.current,
+      latest: d.latest,
+      fixedIn: d.fixedIn,
+      type: d.type,
+      kind: d.kind,
+      license: d.license,
+      usedIn: d.usedIn,
+    },
   }
 }
 
@@ -195,8 +219,27 @@ export function issueDocs(issue: Issue): DocLink[] {
     }
   }
 
-  if (issue.source === "deps" && issue.reference) {
-    links.push({ label: "Advisory / package page", href: issue.reference, kind: "Reference" })
+  // Per-CVE links to the National Vulnerability Database.
+  for (const cve of issue.cves ?? []) {
+    links.push({ label: cve, href: `https://nvd.nist.gov/vuln/detail/${cve}`, kind: "NVD" })
+  }
+
+  if (issue.source === "deps" && issue.dep) {
+    const { name } = issue.dep
+    const enc = encodeURIComponent(name)
+    if (issue.reference) {
+      links.push({ label: "Primary advisory", href: issue.reference, kind: "Advisory" })
+    }
+    links.push(
+      { label: `npm: ${name}`, href: `https://www.npmjs.com/package/${enc}`, kind: "npm" },
+      { label: `Snyk vulnerability DB`, href: `https://security.snyk.io/package/npm/${enc}`, kind: "Snyk" },
+      { label: `GitHub Advisories`, href: `https://github.com/advisories?query=${enc}`, kind: "GitHub" },
+      { label: `Socket.dev supply-chain report`, href: `https://socket.dev/npm/package/${enc}`, kind: "Socket" },
+      { label: `deps.dev dependency graph`, href: `https://deps.dev/npm/${enc}`, kind: "deps.dev" },
+    )
+    if (issue.dep.kind === "license") {
+      links.push({ label: "SPDX license list", href: "https://spdx.org/licenses/", kind: "SPDX" })
+    }
   }
 
   return links

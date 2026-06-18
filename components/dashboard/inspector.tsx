@@ -11,6 +11,9 @@ import {
   Lightbulb,
   ListTree,
   SquareArrowOutUpRight,
+  Package,
+  ArrowRight,
+  ShieldAlert,
 } from "lucide-react"
 import {
   Sheet,
@@ -206,10 +209,19 @@ function DiffBlock({ fix }: { fix: string }) {
 
 function SectionLabel({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) {
   return (
-    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-      <Icon className="size-3.5" />
-      {children}
-    </p>
+  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+  <Icon className="size-3.5" />
+  {children}
+  </p>
+  )
+  }
+
+function MetaCell({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5 bg-card px-3 py-2">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className={cn("tabular-nums", highlight ? "text-[color:var(--sev-ok)]" : "text-foreground")}>{value}</span>
+    </div>
   )
 }
 
@@ -358,6 +370,64 @@ export function InspectorProvider({
                     </span>
                   )}
                 </div>
+
+                {/* Dependency metadata */}
+                {issue.dep && (
+                  <div className="flex flex-col gap-2">
+                    <SectionLabel icon={Package}>Package</SectionLabel>
+                    <div className="rounded-sm border border-border bg-card">
+                      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                        <span className="font-mono text-sm text-foreground">{issue.dep.name}</span>
+                        <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                          {issue.dep.type}
+                        </span>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-px bg-border font-mono text-xs sm:grid-cols-4">
+                        <MetaCell label="installed" value={issue.dep.current} />
+                        {issue.dep.latest && <MetaCell label="latest" value={issue.dep.latest} />}
+                        {issue.dep.fixedIn && <MetaCell label="fixed in" value={issue.dep.fixedIn} highlight />}
+                        {issue.dep.license && <MetaCell label="license" value={issue.dep.license} />}
+                      </dl>
+                      {issue.dep.fixedIn && issue.dep.current !== "—" && (
+                        <div className="flex items-center gap-2 border-t border-border px-3 py-2 font-mono text-xs">
+                          <span className="text-muted-foreground">{issue.dep.current}</span>
+                          <ArrowRight className="size-3 text-muted-foreground" />
+                          <span className="text-[color:var(--sev-ok)]">{issue.dep.fixedIn}</span>
+                          <span className="ml-auto text-muted-foreground">recommended upgrade</span>
+                        </div>
+                      )}
+                    </div>
+                    {issue.dep.usedIn && issue.dep.usedIn.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[11px] text-muted-foreground">imported in:</span>
+                        {issue.dep.usedIn.map((f) => (
+                          <FileLink key={f} path={f} className="text-[11px]" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* CVE chips */}
+                {issue.cves && issue.cves.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <SectionLabel icon={ShieldAlert}>Known advisories</SectionLabel>
+                    <div className="flex flex-wrap gap-1.5">
+                      {issue.cves.map((cve) => (
+                        <a
+                          key={cve}
+                          href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-2 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-secondary"
+                        >
+                          {cve}
+                          <ExternalLink className="size-3 text-muted-foreground" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Description */}
                 <div className="flex flex-col gap-2">

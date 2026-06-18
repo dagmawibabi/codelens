@@ -44,10 +44,17 @@ function MessageRow({ msg, showFile }: { msg: LintMessage; showFile?: boolean })
 
   return (
     <div className="border-t border-border first:border-t-0">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => viewIssue(lintToIssue(msg))}
-        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/40"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            viewIssue(lintToIssue(msg))
+          }
+        }}
+        className="flex w-full cursor-pointer items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary/40"
       >
         <span className={`mt-1 size-2 shrink-0 rounded-full ${sev.dot}`} aria-hidden />
         <span className="min-w-0 flex-1">
@@ -70,7 +77,7 @@ function MessageRow({ msg, showFile }: { msg: LintMessage; showFile?: boolean })
           </span>
         </span>
         <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      </button>
+      </div>
     </div>
   )
 }

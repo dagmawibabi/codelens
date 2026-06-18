@@ -10,6 +10,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/"
+            prefetch
             aria-label="Back to dashboard"
             className="inline-flex size-9 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:text-foreground"
           >

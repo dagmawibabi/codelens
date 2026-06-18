@@ -47,6 +47,7 @@ export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel }: RunHe
         )}
         <Link
           href="/run"
+          prefetch
           className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Play className="size-4" />
@@ -55,6 +56,7 @@ export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel }: RunHe
         <HelpDialog />
         <Link
           href="/settings"
+          prefetch
           aria-label="Settings"
           className="inline-flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
         >

@@ -15,14 +15,17 @@ function DiagnosticItem({ diag }: { diag: TypeDiagnostic }) {
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <button
-        type="button"
-        onClick={() => hasChain && setOpen((v) => !v)}
-        className={cn(
-          "flex w-full items-start gap-3 p-4 text-left",
-          hasChain ? "hover:bg-secondary/40" : "cursor-default",
-        )}
-        aria-expanded={open}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => viewIssue(typeToIssue(diag))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            viewIssue(typeToIssue(diag))
+          }
+        }}
+        className="flex w-full cursor-pointer items-start gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
       >
         <ChevronRight
           className={cn(
