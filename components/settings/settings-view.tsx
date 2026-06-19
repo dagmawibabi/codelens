@@ -17,6 +17,9 @@ import {
   ClipboardList,
   Trash2,
   Eraser,
+  HardDrive,
+  History,
+  Loader2 as Spinner,
 } from "lucide-react"
 import {
   Select,
@@ -48,6 +51,7 @@ import {
   clearAllTasks,
   resetBoard,
 } from "@/lib/tasks"
+import { clearServerData, deleteEverything } from "@/lib/reset-data"
 import { cn } from "@/lib/utils"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -368,6 +372,14 @@ export function SettingsView() {
         >
           <TaskBoardSection />
         </SectionCard>
+
+        <SectionCard
+          icon={HardDrive}
+          title="Data & storage"
+          desc="Reset preferences or permanently delete stored data — runs, chats, the task board, and cached settings."
+        >
+          <DataStorageSection onResetSettings={handleReset} />
+        </SectionCard>
       </div>
 
       {/* Sticky side rail */}
@@ -572,6 +584,148 @@ function TaskBoardSection() {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * A single destructive/reset action with inline two-step confirmation and a
+ * busy state. Keeps the Data & storage rows consistent and prevents accidental
+ * one-click data loss.
+ */
+function DangerRow({
+  icon: Icon,
+  title,
+  desc,
+  actionLabel,
+  busyLabel,
+  onConfirm,
+  tone = "muted",
+}: {
+  icon: React.ElementType
+  title: string
+  desc: string
+  actionLabel: string
+  busyLabel: string
+  onConfirm: () => void | Promise<void>
+  tone?: "muted" | "destructive"
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function run() {
+    setBusy(true)
+    try {
+      await onConfirm()
+    } finally {
+      setBusy(false)
+      setConfirming(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div>
+        <p className="font-mono text-sm text-foreground">{title}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{desc}</p>
+      </div>
+      {busy ? (
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground">
+          <Spinner className="size-3.5 animate-spin" />
+          {busyLabel}
+        </span>
+      ) : confirming ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={run}
+            className="rounded-sm bg-destructive px-2.5 py-1.5 font-mono text-xs text-destructive-foreground"
+          >
+            Confirm
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-mono text-xs transition-colors",
+            tone === "destructive"
+              ? "border-destructive/40 text-destructive hover:bg-destructive/10"
+              : "border-border text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Icon className="size-3.5" />
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Data lifecycle controls. Lets the user reset preferences to defaults or
+ * permanently delete stored data. Server-side artifacts (runs, insights, chats)
+ * live in the CLI's `.codelens/` folder; preferences and the task board live in
+ * this browser's localStorage. A full wipe clears both and reloads.
+ */
+function DataStorageSection({ onResetSettings }: { onResetSettings: () => void }) {
+  return (
+    <div className="flex flex-col divide-y divide-border">
+      <DangerRow
+        icon={RotateCcw}
+        title="Reset settings to defaults"
+        desc="Restore the provider, model, AI, GitHub, and chat preferences to their defaults. Stored data is kept."
+        actionLabel="Reset"
+        busyLabel="Resetting"
+        onConfirm={onResetSettings}
+      />
+
+      <DangerRow
+        icon={History}
+        title="Delete run history"
+        desc="Remove all saved runs, the latest snapshot, and project insights from .codelens/ on this machine."
+        actionLabel="Delete runs"
+        busyLabel="Deleting"
+        tone="destructive"
+        onConfirm={async () => {
+          await clearServerData("runs")
+          window.location.reload()
+        }}
+      />
+
+      <DangerRow
+        icon={MessageSquare}
+        title="Delete chat history"
+        desc="Erase every saved Ask-AI conversation from .codelens/chats.json."
+        actionLabel="Delete chats"
+        busyLabel="Deleting"
+        tone="destructive"
+        onConfirm={async () => {
+          await clearServerData("chats")
+          window.location.reload()
+        }}
+      />
+
+      <DangerRow
+        icon={Trash2}
+        title="Delete everything"
+        desc="Wipe all runs, chats, the task board, and cached settings — server data and this browser's storage. This cannot be undone."
+        actionLabel="Delete all data"
+        busyLabel="Wiping"
+        tone="destructive"
+        onConfirm={async () => {
+          await deleteEverything()
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }

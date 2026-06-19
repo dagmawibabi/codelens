@@ -156,6 +156,26 @@ const ENDPOINTS: ApiEndpoint[] = [
     returns: "{ releases: GithubRelease[] }",
   },
 
+  /* ------------------------------ System ----------------------------- */
+  {
+    method: "DELETE",
+    path: "/api/data",
+    summary: "Delete persisted server-side data",
+    description:
+      "Removes CodeLens artifacts written under .codelens/ (run history, latest run, insights, and saved chats). Used by Settings → Data & storage. Browser localStorage is cleared separately on the client.",
+    group: "System",
+    query: [
+      {
+        name: "scope",
+        type: '"all" | "runs" | "chats"',
+        required: false,
+        description: "Which artifacts to remove. 'runs' clears history/latest/insights, 'chats' clears chats, default 'all'.",
+      },
+    ],
+    returns: "{ ok: true; scope: string; removed: string[] }",
+    returnsExample: '{ "ok": true, "scope": "all", "removed": ["history.json", "chats.json"] }',
+  },
+
   /* ---------------------------- Reference ---------------------------- */
   {
     method: "GET",
