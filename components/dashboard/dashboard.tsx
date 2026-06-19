@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   LayoutDashboard,
   FileText,
   Braces,
   ShieldAlert,
+  ShieldCheck,
   Package,
   Database,
   KeyRound,
@@ -39,6 +40,7 @@ import { TypesPanel } from "./types-panel"
 import { SecurityPanel } from "./security-panel"
 import { DependenciesPanel } from "./dependencies-panel"
 import { DatabasePanel } from "./database-panel"
+import { AuthPanel } from "./auth-panel"
 import { EnvPanel } from "./env-panel"
 import { NetworkPanel } from "./network-panel"
 import { GitPanel } from "./git-panel"
@@ -61,45 +63,49 @@ interface NavGroup {
   items: TabDef[]
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  { items: [{ value: "overview", label: "Overview", icon: LayoutDashboard }] },
-  {
-    label: "Code Quality",
-    items: [
-      { value: "lint", label: "Lint", icon: FileText },
-      { value: "types", label: "Types", icon: Braces },
-      { value: "tests", label: "Tests", icon: FlaskConical },
-    ],
-  },
-  {
-    label: "Security",
-    items: [
-      { value: "security", label: "Security", icon: ShieldAlert },
-      { value: "deps", label: "Dependencies", icon: Package },
-      { value: "env", label: "Environment", icon: KeyRound },
-      { value: "network", label: "Network", icon: Globe },
-    ],
-  },
-  {
-    label: "Experience",
-    items: [
-      { value: "performance", label: "Performance", icon: Gauge },
-      { value: "accessibility", label: "Accessibility", icon: Accessibility },
-    ],
-  },
-  {
-    label: "Project",
-    items: [
-      { value: "setup", label: "Setup", icon: Settings2 },
-      { value: "database", label: "Database", icon: Database },
-      { value: "git", label: "Git & CI/CD", icon: GitBranch },
-      { value: "docs", label: "Docs", icon: BookOpen },
-    ],
-  },
-]
-
-/** Flat list of all tabs, in nav order, for the palette and shortcuts. */
-const TABS: TabDef[] = NAV_GROUPS.flatMap((g) => g.items)
+/**
+ * Builds the sidebar navigation. The Auth tab is only included when the project
+ * actually uses Better Auth, so unrelated projects don't get an empty section.
+ */
+function buildNavGroups(authPresent: boolean): NavGroup[] {
+  return [
+    { items: [{ value: "overview", label: "Overview", icon: LayoutDashboard }] },
+    {
+      label: "Code Quality",
+      items: [
+        { value: "lint", label: "Lint", icon: FileText },
+        { value: "types", label: "Types", icon: Braces },
+        { value: "tests", label: "Tests", icon: FlaskConical },
+      ],
+    },
+    {
+      label: "Security",
+      items: [
+        { value: "security", label: "Security", icon: ShieldAlert },
+        { value: "deps", label: "Dependencies", icon: Package },
+        { value: "env", label: "Environment", icon: KeyRound },
+        { value: "network", label: "Network", icon: Globe },
+        ...(authPresent ? [{ value: "auth", label: "Auth", icon: ShieldCheck } as TabDef] : []),
+      ],
+    },
+    {
+      label: "Experience",
+      items: [
+        { value: "performance", label: "Performance", icon: Gauge },
+        { value: "accessibility", label: "Accessibility", icon: Accessibility },
+      ],
+    },
+    {
+      label: "Project",
+      items: [
+        { value: "setup", label: "Setup", icon: Settings2 },
+        { value: "database", label: "Database", icon: Database },
+        { value: "git", label: "Git & CI/CD", icon: GitBranch },
+        { value: "docs", label: "Docs", icon: BookOpen },
+      ],
+    },
+  ]
+}
 
 /** Settings lives outside the analysis nav but behaves like any other tab. */
 const SETTINGS_TAB: TabDef = { value: "settings", label: "Settings", icon: Settings }
@@ -127,6 +133,10 @@ export function Dashboard({
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
 
+  // Auth tab is conditional on Better Auth being present in the project.
+  const navGroups = useMemo(() => buildNavGroups(insights.auth.present), [insights.auth.present])
+  const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
+
   const counts: Record<string, number> = {
     lint: lint.errorCount + lint.warningCount,
     types: types.diagnostics.length,
@@ -138,6 +148,7 @@ export function Dashboard({
     performance: insights.performance.findings.length,
     accessibility: insights.accessibility.violations.length,
     database: insights.database.findings.length,
+    auth: insights.auth.counts.findings,
     git: insights.git.issues.length + insights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
     docs: insights.docs.standards
       .flatMap((s) => s.checks)
@@ -146,7 +157,7 @@ export function Dashboard({
 
   const selectTab = useCallback((value: string) => setTab(value), [])
 
-  const activeTab = [...TABS, SETTINGS_TAB].find((t) => t.value === tab) ?? TABS[0]
+  const activeTab = [...tabs, SETTINGS_TAB].find((t) => t.value === tab) ?? tabs[0]
 
   // Global keyboard shortcuts: Cmd/Ctrl+K opens search; number keys switch tabs.
   useEffect(() => {
@@ -171,15 +182,15 @@ export function Dashboard({
       const num = Number.parseInt(e.key, 10)
       if (!Number.isNaN(num)) {
         const idx = num === 0 ? 9 : num - 1
-        if (TABS[idx]) {
+        if (tabs[idx]) {
           e.preventDefault()
-          setTab(TABS[idx].value)
+          setTab(tabs[idx].value)
         }
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [tabs])
 
   return (
     <main className="min-h-svh bg-background">
@@ -205,7 +216,7 @@ export function Dashboard({
 
             {/* Scrollable nav */}
             <nav aria-label="Analysis sections" className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
-              {NAV_GROUPS.map((group, i) => (
+              {navGroups.map((group, i) => (
                 <div key={group.label ?? `group-${i}`} className="flex flex-col gap-0.5">
                   {group.label && (
                     <p className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -291,7 +302,7 @@ export function Dashboard({
                     </span>
                   </SelectTrigger>
                   <SelectContent>
-                    {NAV_GROUPS.map((group, i) => (
+                    {navGroups.map((group, i) => (
                       <SelectGroup key={group.label ?? `group-${i}`}>
                         {group.label && <SelectLabel>{group.label}</SelectLabel>}
                         {group.items.map((item) => (
@@ -363,6 +374,11 @@ export function Dashboard({
                 <TabsContent value="database">
                   <DatabasePanel database={insights.database} />
                 </TabsContent>
+                {insights.auth.present && (
+                  <TabsContent value="auth">
+                    <AuthPanel auth={insights.auth} />
+                  </TabsContent>
+                )}
                 <TabsContent value="git">
                   <GitPanel git={insights.git} />
                 </TabsContent>
@@ -384,7 +400,7 @@ export function Dashboard({
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
-          tabs={TABS}
+          tabs={tabs}
           onSelectTab={selectTab}
           onRunChecks={() => setRunOpen(true)}
           report={report}
