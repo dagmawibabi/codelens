@@ -23,6 +23,7 @@ import {
   Settings,
   MessageSquare,
   Webhook,
+  Route,
 } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -42,6 +43,7 @@ import { TypesPanel } from "./types-panel"
 import { SecurityPanel } from "./security-panel"
 import { DependenciesPanel } from "./dependencies-panel"
 import { DatabasePanel } from "./database-panel"
+import { ApiPanel } from "./api-panel"
 import { AuthPanel } from "./auth-panel"
 import { EnvPanel } from "./env-panel"
 import { NetworkPanel } from "./network-panel"
@@ -73,7 +75,7 @@ interface NavGroup {
  * Builds the sidebar navigation. The Auth tab is only included when the project
  * actually uses Better Auth, so unrelated projects don't get an empty section.
  */
-function buildNavGroups(authPresent: boolean): NavGroup[] {
+function buildNavGroups(authPresent: boolean, apiPresent: boolean): NavGroup[] {
   return [
     { items: [{ value: "overview", label: "Overview", icon: LayoutDashboard }] },
     {
@@ -91,6 +93,7 @@ function buildNavGroups(authPresent: boolean): NavGroup[] {
         { value: "deps", label: "Dependencies", icon: Package },
         { value: "env", label: "Environment", icon: KeyRound },
         { value: "network", label: "Network", icon: Globe },
+        ...(apiPresent ? [{ value: "api-surface", label: "API Surface", icon: Route } as TabDef] : []),
         ...(authPresent ? [{ value: "auth", label: "Auth", icon: ShieldCheck } as TabDef] : []),
       ],
     },
@@ -162,8 +165,11 @@ export function Dashboard({
     if (!chatEnabled && tab === "chat") setTab("overview")
   }, [chatEnabled, tab])
 
-  // Auth tab is conditional on Better Auth being present in the project.
-  const navGroups = useMemo(() => buildNavGroups(insights.auth.present), [insights.auth.present])
+  // Auth + API Surface tabs are conditional on detection in the project.
+  const navGroups = useMemo(
+    () => buildNavGroups(insights.auth.present, insights.api.present),
+    [insights.auth.present, insights.api.present],
+  )
   const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
 
   const counts: Record<string, number> = {
@@ -177,6 +183,7 @@ export function Dashboard({
     performance: insights.performance.findings.length,
     accessibility: insights.accessibility.violations.length,
     database: insights.database.findings.length,
+    "api-surface": insights.api.counts.findings,
     auth: insights.auth.counts.findings,
     git: insights.git.issues.length + insights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
     docs: insights.docs.standards
@@ -428,6 +435,11 @@ export function Dashboard({
                 <TabsContent value="database">
                   <DatabasePanel database={insights.database} />
                 </TabsContent>
+                {insights.api.present && (
+                  <TabsContent value="api-surface">
+                    <ApiPanel api={insights.api} />
+                  </TabsContent>
+                )}
                 {insights.auth.present && (
                   <TabsContent value="auth">
                     <AuthPanel auth={insights.auth} />
