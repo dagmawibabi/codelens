@@ -1,7 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { RunPhase, PhaseStatus } from "@/lib/schema"
+import type { RunPhase, PhaseStatus, AnalysisReport } from "@/lib/schema"
+
+/**
+ * Default model the CodeLens CLI audits with — kept in sync with the CLI's
+ * `config.ts` DEFAULTS so the simulated run names the same model the real run
+ * would stream to.
+ */
+const DEFAULT_AI_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 export type LogLevel = "command" | "info" | "success" | "warn" | "error"
 
@@ -30,6 +37,89 @@ export const RUN_PHASES: PhaseMeta[] = [
 ]
 
 const PHASE_ORDER: RunPhase[] = RUN_PHASES.map((p) => p.id)
+
+/**
+ * Builds the simulated terminal output from the *actual* report being shown,
+ * so a run in the standalone preview / demo mode reflects the same numbers and
+ * model the real CodeLens CLI would produce instead of canned placeholders.
+ */
+function buildSimLogs(report: AnalysisReport, aiEnabled: boolean): Record<RunPhase, { level: LogLevel; text: string }[]> {
+  const { lint, types, security } = report
+  const { framework, packageManager, hasTypeScript } = report.meta.project
+  const topFinding = [...security.findings].sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0]
+  const lintLevel: LogLevel = lint.errorCount > 0 ? "error" : lint.warningCount > 0 ? "warn" : "success"
+
+  return {
+    detect: [
+      { level: "command", text: `$ ${packageManager} codelens detect` },
+      { level: "info", text: "Scanning working directory…" },
+      { level: "success", text: `Detected ${framework}` },
+      { level: "info", text: `Package manager: ${packageManager}${hasTypeScript ? " · TypeScript" : ""}` },
+    ],
+    lint: [
+      { level: "command", text: "$ eslint . --format json" },
+      ...(lint.unavailable
+        ? [{ level: "warn" as LogLevel, text: lint.note ?? "ESLint not configured — skipped" }]
+        : [
+            { level: "info" as LogLevel, text: "Running ESLint over the project…" },
+            {
+              level: lintLevel,
+              text: `Lint complete — ${n(lint.errorCount, "error")}, ${n(lint.warningCount, "warning")} (${lint.fixableCount} fixable)`,
+            },
+          ]),
+    ],
+    types: [
+      { level: "command", text: "$ tsc --noEmit --pretty false" },
+      ...(types.unavailable
+        ? [{ level: "warn" as LogLevel, text: types.note ?? "TypeScript not detected — skipped" }]
+        : [
+            { level: "info" as LogLevel, text: "Type-checking project…" },
+            {
+              level: types.diagnostics.length > 0 ? ("error" as LogLevel) : ("success" as LogLevel),
+              text: `tsc finished — ${n(types.diagnostics.length, "type error")}`,
+            },
+          ]),
+    ],
+    deps: [
+      { level: "command", text: `$ ${packageManager} audit --json` },
+      { level: "info", text: "Resolving dependency advisories…" },
+      {
+        level: security.dependencies.length > 0 ? "warn" : "success",
+        text: `Audit complete — ${n(security.dependencies.length, "advisory").replace("advisorys", "advisories")}`,
+      },
+    ],
+    security: aiEnabled
+      ? [
+          { level: "command", text: "$ codelens audit --ai" },
+          { level: "info", text: "Selecting security-relevant files…" },
+          { level: "info", text: `Streaming to ${DEFAULT_AI_MODEL}…` },
+          ...(topFinding
+            ? [
+                {
+                  level: (topFinding.severity === "critical" ? "error" : "warn") as LogLevel,
+                  text: `${topFinding.severity.toUpperCase()} — ${topFinding.title} (${topFinding.filePath}:${topFinding.line})`,
+                },
+              ]
+            : []),
+          {
+            level: security.findings.length > 0 ? "warn" : "success",
+            text: `Review complete — ${n(security.findings.length, "finding")}`,
+          },
+        ]
+      : [{ level: "info", text: "AI security review skipped (--no-ai)" }],
+    insights: [
+      { level: "command", text: "$ codelens scan --insights" },
+      { level: "info", text: "Scanning routes, env, network, git & dependency graph…" },
+      { level: "success", text: "Project insights ready" },
+    ],
+  }
+}
+
+/** Severity ordering used to surface the most important finding first. */
+function severityRank(sev: string): number {
+  const order = ["info", "low", "warning", "medium", "high", "error", "critical"]
+  return order.indexOf(sev)
+}
 
 /** Scripted log output per phase. Each entry becomes a streamed line. */
 const PHASE_LOGS: Record<RunPhase, { level: LogLevel; text: string }[]> = {
@@ -201,7 +291,7 @@ type RunEventLike =
  * the `/ws` socket. When there's no backend (standalone preview) it falls back
  * to a scripted simulation so the UI is still demonstrable.
  */
-export function useRunStream(aiEnabled = true, autoStart = false): RunState {
+export function useRunStream(aiEnabled = true, autoStart = false, report?: AnalysisReport): RunState {
   const [phases, setPhases] = useState<Record<RunPhase, PhaseStatus>>(IDLE)
   const [logs, setLogs] = useState<LogLine[]>([])
   const [running, setRunning] = useState(false)
@@ -218,6 +308,10 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
   // True once the live run has actually started (first phase event seen),
   // so we can ignore the server's initial hydration `state` frame on connect.
   const liveStarted = useRef(false)
+  // Monotonic id for the active run. Async callbacks (fetch/socket) captured by
+  // a previous run compare against this so a stale, unmounted run can't schedule
+  // a second, overlapping simulation (which would duplicate the log stream).
+  const runToken = useRef(0)
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((t) => window.clearTimeout(t))
@@ -257,9 +351,12 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
   const runSimulation = useCallback(() => {
     let delay = 250
     const order = PHASE_ORDER.filter((p) => (p === "security" ? aiEnabled : true))
+    // Drive the scripted output from the real report when one is available, so
+    // the simulated run mirrors the actual analysis numbers and model.
+    const logsByPhase = report ? buildSimLogs(report, aiEnabled) : PHASE_LOGS
 
     order.forEach((phase) => {
-      const lines = PHASE_LOGS[phase]
+      const lines = logsByPhase[phase]
       timers.current.push(
         window.setTimeout(() => {
           setActivePhase(phase)
@@ -289,7 +386,7 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
 
     delay += 400
     timers.current.push(window.setTimeout(finish, delay) as unknown as number)
-  }, [aiEnabled, finish, pushLogs])
+  }, [aiEnabled, finish, pushLogs, report])
 
   // Applies a real event from the CLI to phase state + the terminal log.
   const applyEvent = useCallback(
@@ -328,6 +425,7 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
     startedAt.current = performance.now()
     logId.current = 0
     liveStarted.current = false
+    const token = ++runToken.current
 
     ticker.current = window.setInterval(() => {
       setElapsedMs(performance.now() - startedAt.current)
@@ -366,6 +464,8 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
     fetch("/api/run", { method: "POST" })
       .then((res) => {
         decided = true
+        // Ignore the response if this run was superseded/unmounted.
+        if (runToken.current !== token) return
         if (res.ok || res.status === 409) {
           setMode("live")
         } else {
@@ -376,6 +476,7 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
       })
       .catch(() => {
         decided = true
+        if (runToken.current !== token) return
         setMode("sim")
         closeSocket()
         runSimulation()
@@ -384,7 +485,7 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
     // Safety net: if the POST somehow never settles, fall back to simulation.
     timers.current.push(
       window.setTimeout(() => {
-        if (!decided) {
+        if (!decided && runToken.current === token) {
           setMode("sim")
           closeSocket()
           runSimulation()
@@ -396,6 +497,8 @@ export function useRunStream(aiEnabled = true, autoStart = false): RunState {
   useEffect(() => {
     if (autoStart) start()
     return () => {
+      // Invalidate any in-flight run so its async callbacks become no-ops.
+      runToken.current++
       clearTimers()
       closeSocket()
     }

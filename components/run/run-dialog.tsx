@@ -45,7 +45,7 @@ function RunDialogBody({ report }: { report: AnalysisReport }) {
   // Drives the view from real CLI events when a backend is connected, and
   // triggers the actual `/api/run` itself; falls back to a scripted run only
   // when there is no backend (standalone preview).
-  const { phases, logs, running, done, elapsedMs, start, mode } = useRunStream(aiEnabled, true)
+  const { phases, logs, running, done, elapsedMs, start, mode } = useRunStream(aiEnabled, true, report)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {

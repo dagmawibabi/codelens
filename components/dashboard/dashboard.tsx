@@ -419,7 +419,7 @@ export function Dashboard({
               {/* Content */}
               <div className="min-w-0">
                 <TabsContent value="overview">
-                  <OverviewPanel report={report} history={history} insights={insights} />
+                  <OverviewPanel report={report} history={history} insights={insights} onSelectTab={selectTab} />
                 </TabsContent>
                 <TabsContent value="trends">
                   <TrendsPanel history={history} report={report} />
