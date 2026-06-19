@@ -11,6 +11,7 @@ import type {
   SecurityResult,
   TypeCheckResult,
 } from '../types.js'
+import { loadConfig } from '../config.js'
 
 /**
  * AI security pass. Runs entirely from the CLI (Node), never a browser.
@@ -21,7 +22,10 @@ import type {
  *  2. Prioritize/explain the real CVEs that `npm audit` already found.
  */
 
-const MODEL = process.env.CODELENS_MODEL ?? 'anthropic/claude-opus-4.6'
+/** Model + file budget come from `.codelens.json` (or env), resolved once. */
+function model(): string {
+  return loadConfig().model
+}
 
 const findingSchema = z.object({
   findings: z.array(
@@ -88,7 +92,7 @@ export async function auditCode(
     .join('\n\n')
 
   const { experimental_output } = await generateText({
-    model: MODEL,
+    model: model(),
     system: SYSTEM.replace('{{framework}}', project.framework),
     prompt: `Review the following files and report security findings.\n\n${bundle}`,
     experimental_output: Output.object({ schema: findingSchema }),

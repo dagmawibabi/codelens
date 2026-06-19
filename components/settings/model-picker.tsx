@@ -127,9 +127,14 @@ function ModelRow({
 export function ModelPicker({
   value,
   onChange,
+  /** Custom trigger content. When provided, replaces the default box trigger. */
+  children,
+  triggerClassName,
 }: {
   value: string
   onChange: (id: string) => void
+  children?: React.ReactNode
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -164,10 +169,14 @@ export function ModelPicker({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="flex w-full items-center justify-between gap-2 rounded-sm border border-border bg-card px-3 py-2 text-left font-mono text-sm transition-colors hover:border-foreground/20">
-        <span className="truncate text-foreground">{value || "Select a model"}</span>
-        <Search className="size-3.5 shrink-0 text-muted-foreground" />
-      </DialogTrigger>
+      {children ? (
+        <DialogTrigger className={triggerClassName}>{children}</DialogTrigger>
+      ) : (
+        <DialogTrigger className="flex w-full items-center justify-between gap-2 rounded-sm border border-border bg-card px-3 py-2 text-left font-mono text-sm transition-colors hover:border-foreground/20">
+          <span className="truncate text-foreground">{value || "Select a model"}</span>
+          <Search className="size-3.5 shrink-0 text-muted-foreground" />
+        </DialogTrigger>
+      )}
       <DialogContent className="flex max-h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle className="flex items-center gap-2 font-mono text-sm">

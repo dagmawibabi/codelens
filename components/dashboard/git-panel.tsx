@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   GitBranch,
   GitCommit,
@@ -32,6 +32,7 @@ import { GithubReleases } from "./github-releases"
 import { GithubOverview, RepoSourceBar, type RepoSource } from "./github-overview"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { gitToIssue } from "@/lib/issues"
+import { loadSettings } from "@/lib/settings"
 import type { GitResult, GitIssue, CiWorkflow, CiStatus, GitBranch as GitBranchType } from "@/lib/project-insights"
 import { cn } from "@/lib/utils"
 
@@ -190,15 +191,28 @@ export function GitPanel({ git }: { git: GitResult }) {
   const remoteBranches = state.branches.filter((b) => b.remote)
   const orderedBranches = [...localBranches, ...remoteBranches]
 
+  // An explicit "owner/repo" set in Settings wins over auto-detection.
+  const [override, setOverride] = useState<RepoSource | null>(null)
+  useEffect(() => {
+    const raw = loadSettings().defaultRepo.trim()
+    const m = raw.match(/^([^/\s]+)\/([^/\s]+)$/)
+    if (m) setOverride({ owner: m[1], repo: m[2] })
+  }, [])
+
   // Auto-detect the GitHub repo from the origin remote (GitHub only). The user
   // can override it via the source bar to explore any public repository.
   const detected = useMemo<RepoSource | null>(() => {
+    if (override) return override
     if (state.remoteInfo?.provider === "GitHub") {
       return { owner: state.remoteInfo.owner, repo: state.remoteInfo.name }
     }
     return null
-  }, [state.remoteInfo])
+  }, [state.remoteInfo, override])
   const [source, setSource] = useState<RepoSource | null>(detected)
+  // Adopt the Settings override once it hydrates (effects run after mount).
+  useEffect(() => {
+    if (override) setSource(override)
+  }, [override])
 
   const isGithub = state.remoteInfo?.provider === "GitHub" || Boolean(source)
 

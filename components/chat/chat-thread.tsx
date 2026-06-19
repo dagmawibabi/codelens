@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import { ArrowUp, Square, Sparkles, FileCode2, AlertTriangle, Terminal } from "lucide-react"
 import { Markdown } from "./markdown"
+import { ModelPicker } from "@/components/settings/model-picker"
 import { severityStyle } from "@/lib/severity"
 import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
@@ -27,12 +28,15 @@ export function ChatThread({
   chatId,
   initialMessages,
   model,
+  onModelChange,
   seed,
   onActivity,
 }: {
   chatId: string
   initialMessages: UIMessage[]
   model: string
+  /** Lets the footer model label open the detailed picker. */
+  onModelChange?: (id: string) => void
   seed?: ChatSeed | null
   /** Fired after messages change so the history list can refresh. */
   onActivity?: () => void
@@ -224,8 +228,19 @@ export function ChatThread({
             </button>
           )}
         </form>
-        <p className="mx-auto mt-1.5 max-w-3xl font-mono text-[10px] text-muted-foreground">
-          {model} · responses can be inaccurate — verify important fixes
+        <p className="mx-auto mt-1.5 flex max-w-3xl items-center gap-1 font-mono text-[10px] text-muted-foreground">
+          {onModelChange ? (
+            <ModelPicker
+              value={model}
+              onChange={onModelChange}
+              triggerClassName="rounded-sm px-1 text-foreground underline decoration-dotted underline-offset-2 transition-colors hover:bg-secondary"
+            >
+              {model}
+            </ModelPicker>
+          ) : (
+            <span className="text-foreground">{model}</span>
+          )}
+          <span>· responses can be inaccurate — verify important fixes</span>
         </p>
       </div>
     </div>

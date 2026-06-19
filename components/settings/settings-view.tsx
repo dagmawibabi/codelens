@@ -2,7 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
-import { Cpu, KeyRound, ShieldCheck, FileJson, Save, Check, RotateCcw, Loader2, RefreshCw } from "lucide-react"
+import {
+  Cpu,
+  KeyRound,
+  ShieldCheck,
+  FileJson,
+  Save,
+  Check,
+  RotateCcw,
+  Loader2,
+  RefreshCw,
+  MessageSquare,
+  GitBranch,
+} from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -260,6 +272,82 @@ export function SettingsView() {
               at <span className="text-foreground">{provider.envVar}</span>.
             </p>
           )}
+        </SectionCard>
+
+        <SectionCard
+          icon={MessageSquare}
+          title="AI chat assistant"
+          desc="The in-dashboard assistant available from the sidebar and every issue's “Ask AI” button."
+        >
+          <div className="flex flex-col divide-y divide-border">
+            <ToggleRow
+              label="Enable AI chat assistant"
+              hint="Adds the AI Chat tab and the Ask AI shortcut in issue detail sheets."
+              checked={settings.chatEnabled}
+              onChange={(v) => patch({ chatEnabled: v })}
+            />
+            <ToggleRow
+              label="Persist chat history"
+              hint="Save conversations to .codelens/chats.json so they survive restarts. When off, chats are kept in memory only."
+              checked={settings.persistChats}
+              onChange={(v) => patch({ persistChats: v })}
+            />
+            <div className="flex items-center justify-between gap-4 py-3">
+              <div>
+                <p className="font-mono text-sm text-foreground">Assistant model</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Shared with the audit — set under Provider &amp; model above.
+                </p>
+              </div>
+              <span className="max-w-[12rem] truncate rounded-sm border border-border bg-secondary px-2 py-1 font-mono text-[11px] text-foreground">
+                {settings.model}
+              </span>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          icon={GitBranch}
+          title="GitHub integration"
+          desc="Powers the enriched Git overview and the Releases dashboard. All fields are optional."
+        >
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                Access token
+              </Label>
+              <input
+                type="password"
+                value={settings.githubToken}
+                onChange={(e) => patch({ githubToken: e.target.value })}
+                placeholder="ghp_… (optional)"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-sm border border-border bg-background px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              />
+              <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+                Raises the GitHub API rate limit from 60 to 5,000 requests/hour and enables private repositories.
+                Written to <span className="text-foreground">GITHUB_TOKEN</span> for the CLI.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                Default repository
+              </Label>
+              <input
+                type="text"
+                value={settings.defaultRepo}
+                onChange={(e) => patch({ defaultRepo: e.target.value })}
+                placeholder="owner/repo (optional)"
+                autoComplete="off"
+                spellCheck={false}
+                className="w-full rounded-sm border border-border bg-background px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              />
+              <p className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+                Overrides the auto-detected remote in the Git &amp; Releases tabs.
+              </p>
+            </div>
+          </div>
         </SectionCard>
       </div>
 

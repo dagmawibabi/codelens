@@ -5,6 +5,7 @@ import { runAnalysis } from "./run.js"
 import { startServer, type ServerState } from "./server.js"
 import { saveRun, readHistory, readState } from "./store.js"
 import { aiEnabled } from "./ai/audit.js"
+import { loadConfig } from "./config.js"
 import type { DashboardState, RunEvent } from "./types.js"
 
 const program = new Command()
@@ -24,9 +25,16 @@ program.parse()
 const opts = program.opts()
 
 const cwd = process.cwd()
-const ai = Boolean(opts.ai) && aiEnabled()
 
-if (Boolean(opts.ai) && !aiEnabled()) {
+// Load `.codelens.json` first: it hydrates process.env (AI Gateway key,
+// GITHUB_TOKEN, …) and provides the model / file-budget chosen in the
+// dashboard Settings page, so the CLI and dashboard stay in sync.
+const config = loadConfig(cwd)
+
+// AI runs only when: not disabled via --no-ai, enabled in config, and a key exists.
+const ai = Boolean(opts.ai) && config.aiEnabled && aiEnabled()
+
+if (Boolean(opts.ai) && config.aiEnabled && !aiEnabled()) {
   console.error(
     "\x1b[33m![codelens]\x1b[0m AI security audit is enabled but no model key was found.\n" +
       "  Set AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to enable it, or pass --no-ai to silence this.\n" +

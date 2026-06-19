@@ -390,19 +390,7 @@ export function InspectorProvider({
               </SheetHeader>
 
               <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-4">
-                {/* Primary actions */}
-                {onAskAI && (
-                  <button
-                    type="button"
-                    onClick={() => askAI(issueToSeed(issue))}
-                    className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-3 py-2.5 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                  >
-                    <Sparkles className="size-4" />
-                    Ask AI about this issue
-                  </button>
-                )}
-
-                {/* Location */}
+                {/* Location + primary actions */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -417,6 +405,16 @@ export function InspectorProvider({
                     line={issue.line}
                     column={issue.column ?? 1}
                   />
+                  {onAskAI && (
+                    <button
+                      type="button"
+                      onClick={() => askAI(issueToSeed(issue))}
+                      className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    >
+                      <Sparkles className="size-3.5" />
+                      Ask AI
+                    </button>
+                  )}
                   {issue.fixable && (
                     <span className="rounded-sm bg-[color:var(--sev-ok)]/12 px-2 py-1 font-mono text-[11px] text-[color:var(--sev-ok)]">
                       auto-fixable

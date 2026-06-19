@@ -61,6 +61,7 @@ import { RunDialog } from "@/components/run/run-dialog"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
 import type { ChatSeed } from "@/lib/chat-types"
+import { loadSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 
 interface NavGroup {
@@ -150,6 +151,17 @@ export function Dashboard({
     setTab("chat")
   }, [])
 
+  // The AI chat assistant can be turned off in Settings. Default on, then sync
+  // from the locally-persisted settings after mount.
+  const [chatEnabled, setChatEnabled] = useState(true)
+  useEffect(() => {
+    setChatEnabled(loadSettings().chatEnabled)
+  }, [])
+  // If the assistant is disabled while its tab is active, fall back to overview.
+  useEffect(() => {
+    if (!chatEnabled && tab === "chat") setTab("overview")
+  }, [chatEnabled, tab])
+
   // Auth tab is conditional on Better Auth being present in the project.
   const navGroups = useMemo(() => buildNavGroups(insights.auth.present), [insights.auth.present])
   const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
@@ -211,7 +223,7 @@ export function Dashboard({
 
   return (
     <main className="min-h-svh bg-background">
-      <InspectorProvider projectRoot={report.meta.project.root} onAskAI={handleAskAI}>
+      <InspectorProvider projectRoot={report.meta.project.root} onAskAI={chatEnabled ? handleAskAI : undefined}>
         <div className="flex">
           {/* Desktop sidebar — sticky, full viewport height */}
           <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-border bg-card lg:flex">
@@ -271,21 +283,23 @@ export function Dashboard({
 
             {/* AI Chat + Settings pinned to the bottom of the rail — behave like tabs */}
             <div className="flex shrink-0 flex-col gap-1 border-t border-border p-3">
-              <button
-                type="button"
-                aria-current={tab === "chat" ? "page" : undefined}
-                onClick={() => setTab("chat")}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors",
-                  tab === "chat"
-                    ? "bg-secondary font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
-                )}
-              >
-                <MessageSquare className="size-4 shrink-0" />
-                <span className="flex-1 text-left">AI Chat</span>
-                <Sparkles className="size-3 shrink-0 text-muted-foreground" />
-              </button>
+              {chatEnabled && (
+                <button
+                  type="button"
+                  aria-current={tab === "chat" ? "page" : undefined}
+                  onClick={() => setTab("chat")}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors",
+                    tab === "chat"
+                      ? "bg-secondary font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                  )}
+                >
+                  <MessageSquare className="size-4 shrink-0" />
+                  <span className="flex-1 text-left">AI Chat</span>
+                  <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-current={tab === "settings" ? "page" : undefined}
@@ -352,12 +366,14 @@ export function Dashboard({
                     ))}
                     <SelectGroup>
                       <SelectLabel>Configuration</SelectLabel>
-                      <SelectItem value={CHAT_TAB.value}>
-                        <span className="flex items-center gap-2">
-                          <CHAT_TAB.icon className="size-4 text-muted-foreground" />
-                          {CHAT_TAB.label}
-                        </span>
-                      </SelectItem>
+                      {chatEnabled && (
+                        <SelectItem value={CHAT_TAB.value}>
+                          <span className="flex items-center gap-2">
+                            <CHAT_TAB.icon className="size-4 text-muted-foreground" />
+                            {CHAT_TAB.label}
+                          </span>
+                        </SelectItem>
+                      )}
                       <SelectItem value={SETTINGS_TAB.value}>
                         <span className="flex items-center gap-2">
                           <SETTINGS_TAB.icon className="size-4 text-muted-foreground" />
@@ -429,7 +445,7 @@ export function Dashboard({
                 <TabsContent value="api">
                   <ApiReference />
                 </TabsContent>
-                <TabsContent value="chat">
+                <TabsContent value="chat" className="-mx-4 -my-6 sm:-mx-6">
                   <ChatView pendingSeed={chatSeed} seedNonce={chatSeedNonce} />
                 </TabsContent>
                 <TabsContent value="settings">

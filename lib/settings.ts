@@ -132,6 +132,14 @@ export interface CodeLensSettings {
   redactSecrets: boolean
   /** Max source files sent to the model per run. */
   maxFiles: number
+  /** Enable the in-dashboard AI chat assistant ("Ask AI"). */
+  chatEnabled: boolean
+  /** Persist chat history to .codelens/chats.json (vs. memory-only). */
+  persistChats: boolean
+  /** Optional GitHub token for higher API rate limits / private repos. */
+  githubToken: string
+  /** Optional default repo (owner/repo) for the Git & Releases tabs. */
+  defaultRepo: string
 }
 
 export const DEFAULT_SETTINGS: CodeLensSettings = {
@@ -141,6 +149,10 @@ export const DEFAULT_SETTINGS: CodeLensSettings = {
   aiEnabled: true,
   redactSecrets: true,
   maxFiles: 25,
+  chatEnabled: true,
+  persistChats: true,
+  githubToken: "",
+  defaultRepo: "",
 }
 
 const STORAGE_KEY = "codelens.settings.v1"
@@ -178,6 +190,7 @@ export function toConfigFile(settings: CodeLensSettings) {
   const env: Record<string, string> = {}
   const key = settings.keys[settings.provider]
   if (provider.needsKey && key) env[provider.envVar] = key
+  if (settings.githubToken.trim()) env.GITHUB_TOKEN = settings.githubToken.trim()
 
   return {
     ai: {
@@ -186,6 +199,14 @@ export function toConfigFile(settings: CodeLensSettings) {
       model: settings.model,
       maxFiles: settings.maxFiles,
       redactSecrets: settings.redactSecrets,
+    },
+    chat: {
+      enabled: settings.chatEnabled,
+      persist: settings.persistChats,
+      model: settings.model,
+    },
+    github: {
+      ...(settings.defaultRepo.trim() ? { defaultRepo: settings.defaultRepo.trim() } : {}),
     },
     env,
   }

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import useSWR from "swr"
 import type { UIMessage } from "ai"
-import { Plus, MessageSquare, Trash2, Sparkles, Loader2, ShieldAlert } from "lucide-react"
+import { Plus, MessageSquare, Trash2, Sparkles, Loader2, ShieldAlert, Cpu } from "lucide-react"
 import { ChatThread } from "./chat-thread"
-import { loadSettings } from "@/lib/settings"
+import { ModelPicker } from "@/components/settings/model-picker"
+import { loadSettings, saveSettings } from "@/lib/settings"
 import type { ChatSeed, ChatSummary } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
@@ -49,6 +50,13 @@ export function ChatView({
     setModel(loadSettings().model)
   }, [])
 
+  // Changing the model here persists to settings so the choice sticks across
+  // sessions and is shared with the security audit (same `.codelens.json`).
+  const handleModelChange = useCallback((id: string) => {
+    setModel(id)
+    saveSettings({ ...loadSettings(), model: id })
+  }, [])
+
   const startNewChat = useCallback((seed: ChatSeed | null = null) => {
     setActiveId(crypto.randomUUID())
     setActiveMessages([])
@@ -90,9 +98,28 @@ export function ChatView({
   }
 
   return (
-    <div className="flex h-[calc(100svh-4rem)] min-h-0 overflow-hidden rounded-sm border border-border bg-card">
-      {/* History rail */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border md:flex">
+    <div className="flex h-[calc(100svh-4rem)] min-h-0 overflow-hidden border-t border-border bg-card">
+      {/* Active conversation — primary, on the left */}
+      <div className="min-w-0 flex-1 border-r border-border">
+        {loadingChat ? (
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : activeId ? (
+          <ChatThread
+            key={activeId}
+            chatId={activeId}
+            initialMessages={activeMessages}
+            model={model}
+            onModelChange={handleModelChange}
+            seed={activeSeed}
+            onActivity={() => mutate()}
+          />
+        ) : null}
+      </div>
+
+      {/* History rail — on the right */}
+      <aside className="hidden w-64 shrink-0 flex-col md:flex">
         <div className="shrink-0 p-3">
           <button
             type="button"
@@ -157,31 +184,19 @@ export function ChatView({
             </ul>
           )}
         </div>
-        <div className="shrink-0 border-t border-border px-3 py-2.5">
-          <p className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
-            <Sparkles className="size-3" />
-            Model set in Settings
+        <div className="shrink-0 border-t border-border p-3">
+          <p className="px-0.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            Active model
           </p>
+          <ModelPicker value={model} onChange={handleModelChange}>
+            <span className="flex w-full items-center gap-2 rounded-sm border border-border bg-background px-2.5 py-2 text-left transition-colors hover:border-foreground/20">
+              <Cpu className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">{model}</span>
+              <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+            </span>
+          </ModelPicker>
         </div>
       </aside>
-
-      {/* Active conversation */}
-      <div className="min-w-0 flex-1">
-        {loadingChat ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : activeId ? (
-          <ChatThread
-            key={activeId}
-            chatId={activeId}
-            initialMessages={activeMessages}
-            model={model}
-            seed={activeSeed}
-            onActivity={() => mutate()}
-          />
-        ) : null}
-      </div>
     </div>
   )
 }
