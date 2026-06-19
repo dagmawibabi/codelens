@@ -5,7 +5,7 @@ import { X, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { severityStyle } from "@/lib/severity"
 import { lintToIssue } from "@/lib/issues"
 import type { LintResult, LintMessage } from "@/lib/schema"
@@ -76,6 +76,7 @@ function MessageRow({ msg, showFile }: { msg: LintMessage; showFile?: boolean })
             )}
           </span>
         </span>
+        <TrackedBadge issue={lintToIssue(msg)} variant="dot" className="mt-0.5" />
         <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       </div>
     </div>

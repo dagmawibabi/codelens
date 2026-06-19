@@ -18,7 +18,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { useInspector } from "./inspector"
+import { useInspector, TrackedBadge } from "./inspector"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { envToIssue } from "@/lib/issues"
 import type { EnvResult, EnvVariable, EnvStatus } from "@/lib/project-insights"
@@ -78,6 +78,7 @@ function EnvRow({ v }: { v: EnvVariable }) {
         </div>
         <p className="mt-1.5 text-pretty text-sm leading-relaxed text-foreground">{v.note}</p>
       </div>
+      <TrackedBadge issue={envToIssue(v)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )

@@ -35,7 +35,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { InsightCard } from "./insights"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { GithubReleases } from "./github-releases"
 import { GithubOverview, RepoSourceBar, type RepoSource } from "./github-overview"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
@@ -377,6 +377,7 @@ function GitIssueRow({ issue }: { issue: GitIssue }) {
           </div>
         )}
       </div>
+      <TrackedBadge issue={gitToIssue(issue)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )
