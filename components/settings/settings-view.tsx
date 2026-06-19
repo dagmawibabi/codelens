@@ -13,6 +13,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { KeyInput } from "./key-input"
+import { ModelPicker } from "./model-picker"
 import {
   PROVIDERS,
   getProvider,
@@ -206,9 +207,12 @@ export function SettingsView() {
                     </button>
                   )}
                 </div>
+                {/* Searchable, detailed catalog (models.dev) for any provider. */}
+                <ModelPicker value={settings.model} onChange={(v) => patch({ model: v })} />
+                {/* Quick-pick from the active provider's curated list. */}
                 <Select value={settings.model} onValueChange={(v) => patch({ model: v })}>
-                  <SelectTrigger className="w-full rounded-sm font-mono">
-                    <SelectValue />
+                  <SelectTrigger className="w-full rounded-sm font-mono text-xs">
+                    <SelectValue placeholder="Quick pick…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
                     {models.map((m) => (

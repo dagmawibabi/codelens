@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   GitBranch,
   GitCommit,
@@ -21,11 +21,15 @@ import {
   Archive,
   ExternalLink,
   Check,
+  Rocket,
+  Network,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard } from "./insights"
 import { FileLink, useInspector } from "./inspector"
+import { GithubReleases } from "./github-releases"
+import { GithubOverview, RepoSourceBar, type RepoSource } from "./github-overview"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { gitToIssue } from "@/lib/issues"
 import type { GitResult, GitIssue, CiWorkflow, CiStatus, GitBranch as GitBranchType } from "@/lib/project-insights"
@@ -180,11 +184,116 @@ function BranchRow({ branch }: { branch: GitBranchType }) {
 export function GitPanel({ git }: { git: GitResult }) {
   const { state } = git
   const [showRemote, setShowRemote] = useState(false)
+  const [subTab, setSubTab] = useState<"repository" | "releases">("repository")
   const issues = [...git.issues].sort(bySeverityDesc)
   const localBranches = state.branches.filter((b) => !b.remote)
   const remoteBranches = state.branches.filter((b) => b.remote)
   const orderedBranches = [...localBranches, ...remoteBranches]
 
+  // Auto-detect the GitHub repo from the origin remote (GitHub only). The user
+  // can override it via the source bar to explore any public repository.
+  const detected = useMemo<RepoSource | null>(() => {
+    if (state.remoteInfo?.provider === "GitHub") {
+      return { owner: state.remoteInfo.owner, repo: state.remoteInfo.name }
+    }
+    return null
+  }, [state.remoteInfo])
+  const [source, setSource] = useState<RepoSource | null>(detected)
+
+  const isGithub = state.remoteInfo?.provider === "GitHub" || Boolean(source)
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Repository / Releases sub-tabs (Releases only for GitHub remotes) */}
+      {isGithub && (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSubTab("repository")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-mono text-xs transition-colors",
+              subTab === "repository"
+                ? "border-foreground/30 bg-foreground/[0.06] text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Network className="size-3.5" />
+            Repository
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubTab("releases")}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 font-mono text-xs transition-colors",
+              subTab === "releases"
+                ? "border-foreground/30 bg-foreground/[0.06] text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Rocket className="size-3.5" />
+            Releases
+          </button>
+        </div>
+      )}
+
+      {isGithub && subTab === "releases" ? (
+        <div className="flex flex-col gap-4">
+          <RepoSourceBar source={source} detected={detected} onChange={setSource} />
+          {source ? (
+            <GithubReleases owner={source.owner} repo={source.repo} />
+          ) : (
+            <Card className="p-6 text-center text-sm text-muted-foreground">
+              Enter a GitHub owner/repo above to load releases.
+            </Card>
+          )}
+        </div>
+      ) : (
+        <RepositoryView
+          git={git}
+          state={state}
+          issues={issues}
+          orderedBranches={orderedBranches}
+          localBranches={localBranches}
+          remoteBranches={remoteBranches}
+          showRemote={showRemote}
+          setShowRemote={setShowRemote}
+          source={source}
+          detected={detected}
+          setSource={setSource}
+          isGithub={isGithub}
+        />
+      )}
+    </div>
+  )
+}
+
+function RepositoryView({
+  git,
+  state,
+  issues,
+  orderedBranches,
+  localBranches,
+  remoteBranches,
+  showRemote,
+  setShowRemote,
+  source,
+  detected,
+  setSource,
+  isGithub,
+}: {
+  git: GitResult
+  state: GitResult["state"]
+  issues: GitIssue[]
+  orderedBranches: GitBranchType[]
+  localBranches: GitBranchType[]
+  remoteBranches: GitBranchType[]
+  showRemote: boolean
+  setShowRemote: (fn: (v: boolean) => boolean) => void
+  source: RepoSource | null
+  detected: RepoSource | null
+  setSource: (next: RepoSource) => void
+  isGithub: boolean
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
       <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
@@ -208,6 +317,14 @@ export function GitPanel({ git }: { git: GitResult }) {
               </a>
             </div>
           </InsightCard>
+        )}
+
+        {/* Live GitHub stats — auto-detected, with manual override. */}
+        {isGithub && (
+          <>
+            {!detected && <RepoSourceBar source={source} detected={detected} onChange={setSource} />}
+            {source && <GithubOverview source={source} />}
+          </>
         )}
 
         <InsightCard title="Working tree">

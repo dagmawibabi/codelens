@@ -136,7 +136,7 @@ export interface CodeLensSettings {
 
 export const DEFAULT_SETTINGS: CodeLensSettings = {
   provider: "vercel",
-  model: "anthropic/claude-opus-4.6",
+  model: "google/gemini-2.5-flash",
   keys: {},
   aiEnabled: true,
   redactSecrets: true,

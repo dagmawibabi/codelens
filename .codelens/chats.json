@@ -1,0 +1,70 @@
+[
+  {
+    "id": "d12046c8-2b05-4a69-8690-f27b87ddfd71",
+    "title": "Explain this issue in plain language",
+    "model": "anthropic/claude-opus-4.6",
+    "createdAt": "2026-06-19T03:13:01.178Z",
+    "updatedAt": "2026-06-19T03:13:21.096Z",
+    "seed": null,
+    "messages": [
+      {
+        "parts": [
+          {
+            "type": "text",
+            "text": "Explain this issue in plain language"
+          }
+        ],
+        "id": "ntI7RcNr0aBOEAxl",
+        "role": "user"
+      },
+      {
+        "id": "mfW67GdKHJdU4qsZ",
+        "role": "assistant",
+        "parts": [
+          {
+            "type": "step-start"
+          },
+          {
+            "type": "text",
+            "text": "It seems like you've asked me to explain an issue, but you haven't provided the specific issue details. Could you share:\n\n- The **error message** or **warning** from your dashboard\n- The **code snippet** or **file** involved\n- The **category** (e.g., lint error, security finding, type error, etc.)\n\nOnce you paste that context, I'll break down:\n\n1. **What's happening** — the root cause in plain language\n2. **Why it matters** — the real-world risk\n3. **How to fix it** — the smallest safe change",
+            "providerMetadata": {
+              "gateway": {
+                "generationId": "gen_01KVEXW6QQM48NS8HMMYEPH00Z"
+              }
+            },
+            "state": "done"
+          }
+        ]
+      },
+      {
+        "parts": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ],
+        "id": "yOEk3eqFmZVZezyL",
+        "role": "user"
+      },
+      {
+        "id": "",
+        "role": "assistant",
+        "parts": [
+          {
+            "type": "step-start"
+          },
+          {
+            "type": "text",
+            "text": "Hey! 👋\n\nIt looks like you haven't shared a specific issue yet. To help you out, paste any of the following from your dashboard:\n\n- An **error message** or **warning**\n- A **code snippet** with the problem\n- A **screenshot description** or **finding details**\n\nI'll break it down in plain language and suggest a fix. What are you working with?",
+            "providerMetadata": {
+              "gateway": {
+                "generationId": "gen_01KVEXWPK5CA966FTERJBK2570"
+              }
+            },
+            "state": "done"
+          }
+        ]
+      }
+    ]
+  }
+]
