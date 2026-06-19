@@ -119,8 +119,7 @@ async function introspectOne(conn: LiveConnection): Promise<DbTable[] | null> {
 async function introspectPostgres(conn: LiveConnection): Promise<DbTable[] | null> {
   let pg: any
   try {
-    // @ts-expect-error optional peer dependency, resolved at runtime only
-    pg = await import("pg")
+    pg = await import("pg" as string)
   } catch {
     return null
   }
@@ -217,8 +216,7 @@ async function introspectPostgres(conn: LiveConnection): Promise<DbTable[] | nul
 async function introspectMysql(conn: LiveConnection): Promise<DbTable[] | null> {
   let mysql: any
   try {
-    // @ts-expect-error optional peer dependency, resolved at runtime only
-    mysql = await import("mysql2/promise")
+    mysql = await import("mysql2/promise" as string)
   } catch {
     return null
   }
@@ -275,8 +273,7 @@ async function introspectMysql(conn: LiveConnection): Promise<DbTable[] | null> 
 async function introspectMongo(conn: LiveConnection): Promise<DbTable[] | null> {
   let mongodb: any
   try {
-    // @ts-expect-error optional peer dependency, resolved at runtime only
-    mongodb = await import("mongodb")
+    mongodb = await import("mongodb" as string)
   } catch {
     return null
   }
