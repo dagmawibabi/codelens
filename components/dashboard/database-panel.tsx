@@ -346,21 +346,38 @@ export function DatabasePanel({ database }: { database: DbResult }) {
               <span className="font-mono text-xs tabular-nums text-muted-foreground">{tables.length}</span>
             </button>
           )}
-        </div>
+          </div>
+        )}
 
-        {/* Findings view */}
-        {viewTab === "findings" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-1 rounded-sm border border-border bg-card p-1">
-            {filterTabs.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setFilter(t.key)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
-                  filter === t.key ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
+        {/* Schema / Tables view */}
+        {viewTab === "schema" && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Layers className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">Database schema</h3>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {tables.length} tables
+              </Badge>
+            </div>
+            {tables.length === 0 ? (
+              <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+                <Activity className="size-5" />
+                Schema not yet discovered. Run a database introspection scan.
+              </Card>
+            ) : (
+              <Card className="gap-0 overflow-hidden py-0">
+                {tables.map((t) => (
+                  <TableRow
+                    key={t.name}
+                    table={t}
+                    expanded={expandedTables.has(t.name)}
+                    onToggle={() => toggleTableExpand(t.name)}
+                  />
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
               >
                 {t.label}
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">{t.count}</span>
@@ -388,52 +405,52 @@ export function DatabasePanel({ database }: { database: DbResult }) {
               ))}
             </Card>
           )}
-        </div>
 
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Gauge className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">Slowest queries</h3>
-            <Badge variant="secondary" className="font-mono text-xs">
-              {database.counts.slowQueries} slow
-            </Badge>
-          </div>
-          <Card className="gap-0 overflow-hidden py-0">
-            {slowQueries.map((q) => (
-              <QueryRow key={q.id} q={q} />
-            ))}
-          </Card>
-        </section>
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Gauge className="size-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-foreground">Slowest queries</h3>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {database.counts.slowQueries} slow
+                </Badge>
+              </div>
+              <Card className="gap-0 overflow-hidden py-0">
+                {slowQueries.map((q) => (
+                  <QueryRow key={q.id} q={q} />
+                ))}
+              </Card>
+            </section>
+        </div>
         )}
 
         {/* Schema / Tables view */}
         {viewTab === "schema" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Layers className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">Database schema</h3>
-            <Badge variant="secondary" className="font-mono text-xs">
-              {tables.length} tables
-            </Badge>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Layers className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">Database schema</h3>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {tables.length} tables
+              </Badge>
+            </div>
+            {tables.length === 0 ? (
+              <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+                <Activity className="size-5" />
+                Schema not yet discovered. Run a database introspection scan.
+              </Card>
+            ) : (
+              <Card className="gap-0 overflow-hidden py-0">
+                {tables.map((t) => (
+                  <TableRow
+                    key={t.name}
+                    table={t}
+                    expanded={expandedTables.has(t.name)}
+                    onToggle={() => toggleTableExpand(t.name)}
+                  />
+                ))}
+              </Card>
+            )}
           </div>
-          {tables.length === 0 ? (
-            <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-              <Activity className="size-5" />
-              Schema not yet discovered. Run a database introspection scan.
-            </Card>
-          ) : (
-            <Card className="gap-0 overflow-hidden py-0">
-              {tables.map((t) => (
-                <TableRow
-                  key={t.name}
-                  table={t}
-                  expanded={expandedTables.has(t.name)}
-                  onToggle={() => toggleTableExpand(t.name)}
-                />
-              ))}
-            </Card>
-          )}
-        </div>
         )}
       </div>
     </div>
