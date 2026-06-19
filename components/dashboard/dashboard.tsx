@@ -50,6 +50,7 @@ import { PerformancePanel } from "./performance-panel"
 import { TestsPanel } from "./tests-panel"
 import { InspectorProvider } from "./inspector"
 import { CommandPalette, type TabDef } from "./command-palette"
+import { EmptyState } from "./empty-state"
 import { RunDialog } from "@/components/run/run-dialog"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
@@ -104,10 +105,19 @@ export function Dashboard({
   report,
   history,
   insights,
+  empty = false,
+  demoActive = false,
+  onToggleDemo,
 }: {
   report: AnalysisReport
   history: TrendPoint[]
   insights: ProjectInsights
+  /** True before any analysis has run — shows the empty state in the content area. */
+  empty?: boolean
+  /** Whether bundled demo data is currently shown. */
+  demoActive?: boolean
+  /** Toggle the bundled demo data on/off. */
+  onToggleDemo?: (on: boolean) => void
 }) {
   const { lint, types, security, deps } = report
   const [tab, setTab] = useState("overview")
@@ -246,12 +256,21 @@ export function Dashboard({
             <RunHeader
               project={report.meta.project}
               aiEnabled={report.meta.aiEnabled}
-              lastRunMs={report.meta.durationMs}
+              lastRunMs={empty ? null : report.meta.durationMs}
               lastRunLabel="just now"
+              empty={empty}
+              demoActive={demoActive}
+              onToggleDemo={onToggleDemo}
               onOpenSearch={() => setPaletteOpen(true)}
               onRunChecks={() => setRunOpen(true)}
             />
 
+            {empty ? (
+              <EmptyState
+                onRunChecks={() => setRunOpen(true)}
+                onLoadDemo={() => onToggleDemo?.(true)}
+              />
+            ) : (
             <Tabs value={tab} onValueChange={setTab} className="flex flex-col gap-4 px-4 py-6 sm:px-6">
               {/* Mobile / tablet navigation */}
               <div className="flex items-center gap-2 lg:hidden">
@@ -337,6 +356,7 @@ export function Dashboard({
                 </TabsContent>
               </div>
             </Tabs>
+            )}
           </div>
         </div>
 

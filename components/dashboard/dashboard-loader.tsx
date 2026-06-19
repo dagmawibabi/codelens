@@ -5,21 +5,28 @@ import { useDashboardData } from "@/lib/use-dashboard-data"
 
 /**
  * Client entry point for the dashboard. Resolves live CLI data (via
- * `/api/state` + `/ws`) with a graceful fallback to bundled mock data when
- * running in the standalone preview with no CodeLens backend.
+ * `/api/state` + `/ws`) and otherwise defaults to an empty "no analysis yet"
+ * state. Users can load bundled sample data on demand from the Run-checks menu.
  */
 export function DashboardLoader() {
-  const { data, source } = useDashboardData()
+  const { data, source, demo, setDemo } = useDashboardData()
+  const empty = source === "empty" || source === "loading"
 
   return (
     <>
-      {source === "mock" && (
+      {source === "demo" && (
         <div className="fixed bottom-3 right-3 z-50 rounded-sm border border-border bg-card px-2.5 py-1 font-mono text-[10px] text-muted-foreground shadow-sm">
-          Sample data — run{" "}
-          <span className="font-semibold text-foreground">codelens</span> in a project for live results
+          Demo data — run <span className="font-semibold text-foreground">codelens</span> in a project for live results
         </div>
       )}
-      <Dashboard report={data.report} history={data.history} insights={data.insights} />
+      <Dashboard
+        report={data.report}
+        history={data.history}
+        insights={data.insights}
+        empty={empty}
+        demoActive={source === "demo"}
+        onToggleDemo={setDemo}
+      />
     </>
   )
 }

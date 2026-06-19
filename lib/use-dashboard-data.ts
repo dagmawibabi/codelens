@@ -5,6 +5,7 @@ import useSWR from "swr"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import { mockReport, mockHistory } from "@/lib/mock-data"
 import { projectInsights, type ProjectInsights } from "@/lib/project-insights"
+import { EMPTY_DATA } from "@/lib/empty-data"
 
 export interface DashboardData {
   report: AnalysisReport
@@ -12,7 +13,14 @@ export interface DashboardData {
   history: TrendPoint[]
 }
 
-export type DataSource = "live" | "mock" | "loading"
+/**
+ * Where the rendered data came from:
+ * - `live`   — a real CodeLens CLI backend (via /api/state + /ws)
+ * - `demo`   — bundled sample data, loaded on demand from the Run-checks menu
+ * - `empty`  — no run yet; everything is zero/empty (the default)
+ * - `loading`— resolving the backend
+ */
+export type DataSource = "live" | "demo" | "empty" | "loading"
 
 const MOCK: DashboardData = {
   report: mockReport,
@@ -35,7 +43,16 @@ async function fetchState(url: string): Promise<DashboardData | null> {
  * In the standalone preview (no CLI backend) it falls back to bundled mock data
  * so the UI is always populated.
  */
-export function useDashboardData(): { data: DashboardData; source: DataSource } {
+export interface UseDashboardData {
+  data: DashboardData
+  source: DataSource
+  /** Whether bundled demo data is currently being shown. */
+  demo: boolean
+  /** Toggle the bundled demo data on/off (only meaningful with no live backend). */
+  setDemo: (on: boolean) => void
+}
+
+export function useDashboardData(): UseDashboardData {
   const { data, error, isLoading, mutate } = useSWR<DashboardData | null>(
     "/api/state",
     fetchState,
@@ -46,6 +63,7 @@ export function useDashboardData(): { data: DashboardData; source: DataSource } 
   )
 
   const [live, setLive] = useState<DashboardData | null>(null)
+  const [demo, setDemo] = useState(false)
   const hasBackend = !error && (data != null || live != null)
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -88,9 +106,12 @@ export function useDashboardData(): { data: DashboardData; source: DataSource } 
 
   const resolved = live ?? data ?? null
 
-  if (resolved) return { data: resolved, source: "live" }
-  if (isLoading) return { data: MOCK, source: "loading" }
-  // No backend (preview/standalone) — use bundled mock data.
+  // A real backend always wins over the local demo/empty state.
+  if (resolved) return { data: resolved, source: "live", demo, setDemo }
+  if (isLoading) return { data: EMPTY_DATA, source: "loading", demo, setDemo }
+  // No backend (preview/standalone). Default to an empty state; the user can
+  // opt into bundled sample data from the Run-checks menu.
   void hasBackend
-  return { data: MOCK, source: "mock" }
+  if (demo) return { data: MOCK, source: "demo", demo, setDemo }
+  return { data: EMPTY_DATA, source: "empty", demo, setDemo }
 }
