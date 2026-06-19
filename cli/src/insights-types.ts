@@ -29,6 +29,8 @@ export interface EnvVariable {
   /** Raw, unmasked value parsed from the local env file. Read only from the
    *  developer's own machine and revealed behind an explicit toggle. */
   value?: string
+  /** Per-file values so the UI can compare .env.local vs .env.example, etc. */
+  values?: { file: string; value: string | null }[]
 }
 
 export interface EnvResult {
@@ -99,6 +101,14 @@ export interface GitCommit {
   message: string
   author: string
   relative: string
+  fullHash?: string
+  email?: string
+  date?: string
+  body?: string
+  files?: GitFileChange[]
+  insertions?: number
+  deletions?: number
+  refs?: string[]
 }
 
 export interface GitBranch {
@@ -110,6 +120,22 @@ export interface GitBranch {
   upstream?: string
   /** Relative time of the branch tip's last commit. */
   lastCommitRelative?: string
+  ahead?: number
+  behind?: number
+  tip?: string
+  subject?: string
+  author?: string
+  merged?: boolean
+}
+
+export interface GitTag {
+  name: string
+  commit?: string
+  relative?: string
+  date?: string
+  message?: string
+  tagger?: string
+  annotated?: boolean
 }
 
 /** Parsed from the `origin` remote URL; powers the repo link in the UI. */
@@ -137,6 +163,7 @@ export interface GitState {
   branches: GitBranch[]
   /** Lightweight tags, newest first. */
   tags: string[]
+  tagDetails?: GitTag[]
   /** Git-ignored files: total count plus a sample for display. */
   ignored: { count: number; samples: string[] }
   /** Number of stash entries. */
@@ -145,14 +172,29 @@ export interface GitState {
   staged: number
   contributors: number
   totalCommits: number
+  firstCommitRelative?: string
+  trackedFiles?: number
+  topContributors?: { name: string; commits: number }[]
 }
 
 export type CiStatus = "passing" | "failing" | "no-runs" | "disabled"
+
+export interface CiStep {
+  name: string
+  uses?: string
+  run?: string
+  condition?: string
+  diagnostics?: string[]
+}
 
 export interface CiJob {
   name: string
   status: CiStatus
   durationMs?: number
+  runsOn?: string
+  needs?: string[]
+  condition?: string
+  steps?: CiStep[]
 }
 
 export interface CiWorkflow {
@@ -164,6 +206,15 @@ export interface CiWorkflow {
   status: CiStatus
   jobs: CiJob[]
   issues: GitIssue[]
+  concurrency?: string
+  permissions?: string[]
+  env?: string[]
+  schedules?: string[]
+  diagnosis?: {
+    localCommand?: string
+    runnable: boolean
+    notes: string[]
+  }
 }
 
 export interface GitResult {
@@ -289,6 +340,8 @@ export type DbIssueKind =
   | "full-scan"
   | "no-validation"
 
+export type DbDetectionSource = "dependency" | "env" | "connection-string" | "schema-file" | "config"
+
 export interface DbConnection {
   id: string
   engine: DbEngine
@@ -300,6 +353,36 @@ export interface DbConnection {
   envVar: string
   collections: number
   filePath: string
+  detectedVia?: DbDetectionSource
+  scheme?: string
+  schemaSource?: string
+}
+
+export type DbColumnFlag = "pk" | "fk" | "unique" | "index" | "nullable" | "default"
+
+export interface DbColumn {
+  name: string
+  type: string
+  flags: DbColumnFlag[]
+  references?: string
+  note?: string
+}
+
+export interface DbIndexInfo {
+  name: string
+  columns: string[]
+  unique: boolean
+}
+
+export interface DbTable {
+  name: string
+  connectionId: string
+  kind: "table" | "collection" | "view"
+  columns: DbColumn[]
+  indexes: DbIndexInfo[]
+  rowCount: number
+  sizeKb?: number
+  filePath?: string
 }
 
 export interface DbFinding {
@@ -332,6 +415,7 @@ export interface DbResult {
   connections: DbConnection[]
   findings: DbFinding[]
   queries: DbQuery[]
+  tables?: DbTable[]
   counts: { connections: number; collections: number; findings: number; slowQueries: number }
 }
 
@@ -430,6 +514,18 @@ export interface PerfResult {
 
 export type TestStatus = "passed" | "failed" | "skipped"
 
+export interface TestCase {
+  name: string
+  fullName?: string
+  status: TestStatus
+  durationMs?: number
+  line?: number
+  assertions?: string[]
+  error?: string
+  expected?: string
+  actual?: string
+}
+
 export interface TestSuite {
   id: string
   name: string
@@ -440,6 +536,7 @@ export interface TestSuite {
   skipped: number
   durationMs: number
   status: TestStatus
+  tests?: TestCase[]
 }
 
 export type TestIssueKind = "failing" | "flaky" | "slow" | "uncovered" | "no-tests"

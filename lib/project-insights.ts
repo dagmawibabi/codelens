@@ -39,6 +39,9 @@ export interface EnvVariable {
   /** Raw, unmasked value parsed from the local env file. Read only from the
    *  developer's own machine and revealed behind an explicit toggle. */
   value?: string
+  /** Per-file values so the UI can compare .env.local vs .env.example, etc.
+   *  `value` is `null` when the file declares the key with no value. */
+  values?: { file: string; value: string | null }[]
 }
 
 export interface EnvResult {
@@ -110,6 +113,21 @@ export interface GitCommit {
   message: string
   author: string
   relative: string
+  /** Full 40-char SHA, when known. */
+  fullHash?: string
+  /** Author email. */
+  email?: string
+  /** Absolute commit date (ISO) for tooltips. */
+  date?: string
+  /** Extended commit body / description below the subject line. */
+  body?: string
+  /** Files touched by this commit. */
+  files?: GitFileChange[]
+  /** Diff stats. */
+  insertions?: number
+  deletions?: number
+  /** Refs pointing at this commit (tags, branches). */
+  refs?: string[]
 }
 
 export interface GitBranch {
@@ -121,6 +139,34 @@ export interface GitBranch {
   upstream?: string
   /** Relative time of the branch tip's last commit. */
   lastCommitRelative?: string
+  /** Commits ahead/behind the default branch. */
+  ahead?: number
+  behind?: number
+  /** Short hash of the branch tip. */
+  tip?: string
+  /** Subject line of the tip commit. */
+  subject?: string
+  /** Author of the tip commit. */
+  author?: string
+  /** Whether the branch has been merged into the default branch. */
+  merged?: boolean
+}
+
+/** Annotated or lightweight tag with metadata for the detail sheet. */
+export interface GitTag {
+  name: string
+  /** Short hash of the tagged commit. */
+  commit?: string
+  /** Relative time of the tag / tagged commit. */
+  relative?: string
+  /** Absolute date (ISO). */
+  date?: string
+  /** Annotation message for annotated tags. */
+  message?: string
+  /** Tagger / author name. */
+  tagger?: string
+  /** True for annotated tags (vs lightweight). */
+  annotated?: boolean
 }
 
 /** Parsed from the `origin` remote URL; powers the repo link in the UI. */
@@ -148,6 +194,8 @@ export interface GitState {
   branches: GitBranch[]
   /** Lightweight tags, newest first. */
   tags: string[]
+  /** Rich tag metadata, when available (parallels `tags`). */
+  tagDetails?: GitTag[]
   /** Git-ignored files: total count plus a sample for display. */
   ignored: { count: number; samples: string[] }
   /** Number of stash entries. */
@@ -156,14 +204,41 @@ export interface GitState {
   staged: number
   contributors: number
   totalCommits: number
+  /** Relative time of the repository's first commit. */
+  firstCommitRelative?: string
+  /** Number of files in the working tree (tracked). */
+  trackedFiles?: number
+  /** Top contributors by commit count. */
+  topContributors?: { name: string; commits: number }[]
 }
 
 export type CiStatus = "passing" | "failing" | "no-runs" | "disabled"
+
+/** A single step within a CI job. */
+export interface CiStep {
+  name: string
+  /** Marketplace action used (e.g. actions/checkout@v4). */
+  uses?: string
+  /** Inline shell command. */
+  run?: string
+  /** `if:` condition guarding the step. */
+  condition?: string
+  /** Static diagnostics found for this step. */
+  diagnostics?: string[]
+}
 
 export interface CiJob {
   name: string
   status: CiStatus
   durationMs?: number
+  /** Runner image (e.g. ubuntu-latest). */
+  runsOn?: string
+  /** Jobs this one depends on. */
+  needs?: string[]
+  /** `if:` condition guarding the whole job. */
+  condition?: string
+  /** Parsed steps. */
+  steps?: CiStep[]
 }
 
 export interface CiWorkflow {
@@ -175,6 +250,22 @@ export interface CiWorkflow {
   status: CiStatus
   jobs: CiJob[]
   issues: GitIssue[]
+  /** Concurrency group config, if declared. */
+  concurrency?: string
+  /** Declared top-level permissions. */
+  permissions?: string[]
+  /** Env var names referenced at the workflow level. */
+  env?: string[]
+  /** Cron schedules, if any. */
+  schedules?: string[]
+  /** How to run / diagnose this workflow locally. */
+  diagnosis?: {
+    /** Suggested local command (e.g. `act -j build`). */
+    localCommand?: string
+    /** Whether a local runner (act) is applicable. */
+    runnable: boolean
+    notes: string[]
+  }
 }
 
 export interface GitResult {
@@ -329,6 +420,9 @@ export type DbIssueKind =
   | "full-scan"
   | "no-validation"
 
+/** How the datastore was detected, for transparency in the UI. */
+export type DbDetectionSource = "dependency" | "env" | "connection-string" | "schema-file" | "config"
+
 export interface DbConnection {
   id: string
   engine: DbEngine
@@ -347,6 +441,47 @@ export interface DbConnection {
   collections: number
   /** Where the client is instantiated. */
   filePath: string
+  /** How this datastore was identified. */
+  detectedVia?: DbDetectionSource
+  /** Detected scheme of the connection string (e.g. mongodb+srv, postgres). */
+  scheme?: string
+  /** Source of the schema (e.g. Prisma schema, Drizzle, mongoose models). */
+  schemaSource?: string
+}
+
+export type DbColumnFlag = "pk" | "fk" | "unique" | "index" | "nullable" | "default"
+
+export interface DbColumn {
+  name: string
+  /** SQL type or inferred document field type. */
+  type: string
+  flags: DbColumnFlag[]
+  /** Referenced table.column for foreign keys. */
+  references?: string
+  note?: string
+}
+
+export interface DbIndexInfo {
+  name: string
+  columns: string[]
+  unique: boolean
+}
+
+/** A table (SQL) or collection (document store). */
+export interface DbTable {
+  name: string
+  /** Which connection this belongs to. */
+  connectionId: string
+  /** "table" for SQL, "collection" for document stores. */
+  kind: "table" | "collection" | "view"
+  columns: DbColumn[]
+  indexes: DbIndexInfo[]
+  /** Approximate row/document count. */
+  rowCount: number
+  /** On-disk size estimate. */
+  sizeKb?: number
+  /** Where the model/table is defined. */
+  filePath?: string
 }
 
 export interface DbFinding {
@@ -386,6 +521,8 @@ export interface DbResult {
   findings: DbFinding[]
   /** Notable / slowest observed queries. */
   queries: DbQuery[]
+  /** Schema: tables/collections discovered across connections. */
+  tables?: DbTable[]
   counts: { connections: number; collections: number; findings: number; slowQueries: number }
 }
 
@@ -499,6 +636,23 @@ export interface PerfResult {
 
 export type TestStatus = "passed" | "failed" | "skipped"
 
+/** An individual test case ("it"/"test") within a suite. */
+export interface TestCase {
+  name: string
+  /** Full nested name including describe blocks. */
+  fullName?: string
+  status: TestStatus
+  durationMs?: number
+  line?: number
+  /** Assertions / expectations the test makes (parsed from expect()). */
+  assertions?: string[]
+  /** Failure message for failed tests. */
+  error?: string
+  /** Expected vs received for a failed assertion. */
+  expected?: string
+  actual?: string
+}
+
 export interface TestSuite {
   id: string
   name: string
@@ -509,6 +663,8 @@ export interface TestSuite {
   skipped: number
   durationMs: number
   status: TestStatus
+  /** Individual test cases, when collected. */
+  tests?: TestCase[]
 }
 
 export type TestIssueKind = "failing" | "flaky" | "slow" | "uncovered" | "no-tests"
@@ -915,22 +1071,76 @@ export const projectInsights: ProjectInsights = {
         relative: "2 hours ago",
       },
       recentCommits: [
-        { hash: "a1b2c3d", message: "wip: tweak price tag layout", author: "Jordan Lee", relative: "2 hours ago" },
-        { hash: "9f2a11c", message: "feat: redesign checkout summary", author: "Jordan Lee", relative: "5 hours ago" },
-        { hash: "7c4e0b2", message: "refactor: extract usePricing hook", author: "Sam Rivera", relative: "1 day ago" },
-        { hash: "3d9f8a1", message: "fix: cart total rounding error", author: "Priya Nair", relative: "2 days ago" },
-        { hash: "b50c7e4", message: "chore: bump next to 16.0.1", author: "Jordan Lee", relative: "3 days ago" },
-        { hash: "e1a2d3f", message: "test: add checkout e2e coverage", author: "Sam Rivera", relative: "4 days ago" },
+        {
+          hash: "a1b2c3d", fullHash: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+          message: "wip: tweak price tag layout", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "2 hours ago", date: "2026-06-19T08:12:00Z", refs: ["HEAD -> feat/checkout-redesign"],
+          body: "Adjust the discount badge so it aligns with the strikethrough price.\nStill WIP — needs the responsive breakpoint pass.",
+          insertions: 34, deletions: 12,
+          files: [
+            { path: "components/price-tag.tsx", status: "modified" },
+            { path: "app/checkout/page.tsx", status: "modified" },
+          ],
+        },
+        {
+          hash: "9f2a11c", fullHash: "9f2a11c0b1d2e3f405162738495a6b7c8d9e0f12",
+          message: "feat: redesign checkout summary", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "5 hours ago", date: "2026-06-19T05:40:00Z",
+          body: "New two-column summary with order totals on the right.",
+          insertions: 212, deletions: 48,
+          files: [
+            { path: "app/checkout/page.tsx", status: "modified" },
+            { path: "components/order-summary.tsx", status: "added" },
+            { path: "config/payments.ts", status: "modified" },
+          ],
+        },
+        {
+          hash: "7c4e0b2", fullHash: "7c4e0b2a3948576675849302a1b0c9d8e7f60514",
+          message: "refactor: extract usePricing hook", author: "Sam Rivera", email: "sam@acme.dev",
+          relative: "1 day ago", date: "2026-06-18T10:05:00Z", insertions: 88, deletions: 96,
+          files: [
+            { path: "hooks/use-pricing.ts", status: "added" },
+            { path: "components/price-tag.tsx", status: "modified" },
+          ],
+        },
+        {
+          hash: "3d9f8a1", fullHash: "3d9f8a1b2c3d4e5f60718293a4b5c6d7e8f90123",
+          message: "fix: cart total rounding error", author: "Priya Nair", email: "priya@acme.dev",
+          relative: "2 days ago", date: "2026-06-17T14:22:00Z", insertions: 9, deletions: 4,
+          body: "Round to cents before summing instead of after — fixes the off-by-one-cent totals reported in #482.",
+          files: [{ path: "lib/cart.ts", status: "modified" }],
+        },
+        {
+          hash: "b50c7e4", fullHash: "b50c7e4f5a6b7c8d9e0f1a2b3c4d5e6f70819203",
+          message: "chore: bump next to 16.0.1", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "3 days ago", date: "2026-06-16T09:00:00Z", insertions: 14, deletions: 14,
+          files: [
+            { path: "package.json", status: "modified" },
+            { path: "pnpm-lock.yaml", status: "modified" },
+          ],
+        },
+        {
+          hash: "e1a2d3f", fullHash: "e1a2d3f4b5c6d7e8f90112233445566778899aab",
+          message: "test: add checkout e2e coverage", author: "Sam Rivera", email: "sam@acme.dev",
+          relative: "4 days ago", date: "2026-06-15T16:30:00Z", insertions: 156, deletions: 0,
+          files: [{ path: "e2e/checkout.spec.ts", status: "added" }],
+        },
       ],
       branches: [
-        { name: "feat/checkout-redesign", current: true, remote: false, upstream: "origin/feat/checkout-redesign", lastCommitRelative: "2 hours ago" },
-        { name: "main", current: false, remote: false, upstream: "origin/main", lastCommitRelative: "5 hours ago" },
-        { name: "fix/cart-rounding", current: false, remote: false, lastCommitRelative: "2 days ago" },
-        { name: "origin/main", current: false, remote: true, lastCommitRelative: "5 hours ago" },
-        { name: "origin/feat/checkout-redesign", current: false, remote: true, lastCommitRelative: "2 hours ago" },
-        { name: "origin/release/2.4", current: false, remote: true, lastCommitRelative: "3 weeks ago" },
+        { name: "feat/checkout-redesign", current: true, remote: false, upstream: "origin/feat/checkout-redesign", lastCommitRelative: "2 hours ago", ahead: 3, behind: 7, tip: "a1b2c3d", subject: "wip: tweak price tag layout", author: "Jordan Lee", merged: false },
+        { name: "main", current: false, remote: false, upstream: "origin/main", lastCommitRelative: "5 hours ago", ahead: 0, behind: 0, tip: "9f2a11c", subject: "feat: redesign checkout summary", author: "Jordan Lee", merged: false },
+        { name: "fix/cart-rounding", current: false, remote: false, lastCommitRelative: "2 days ago", ahead: 1, behind: 4, tip: "3d9f8a1", subject: "fix: cart total rounding error", author: "Priya Nair", merged: true },
+        { name: "origin/main", current: false, remote: true, lastCommitRelative: "5 hours ago", tip: "9f2a11c", subject: "feat: redesign checkout summary", author: "Jordan Lee" },
+        { name: "origin/feat/checkout-redesign", current: false, remote: true, lastCommitRelative: "2 hours ago", tip: "a1b2c3d", subject: "wip: tweak price tag layout", author: "Jordan Lee" },
+        { name: "origin/release/2.4", current: false, remote: true, lastCommitRelative: "3 weeks ago", tip: "f0d1e2c", subject: "release: cut 2.4.0", author: "Priya Nair" },
       ],
       tags: ["v2.3.0", "v2.2.1", "v2.2.0", "v2.1.0"],
+      tagDetails: [
+        { name: "v2.3.0", commit: "9f2a11c", relative: "5 hours ago", date: "2026-06-19T05:40:00Z", annotated: true, tagger: "Jordan Lee", message: "Checkout redesign + pricing hook. See CHANGELOG for the full list." },
+        { name: "v2.2.1", commit: "3d9f8a1", relative: "2 days ago", date: "2026-06-17T14:22:00Z", annotated: true, tagger: "Priya Nair", message: "Patch: cart total rounding fix (#482)." },
+        { name: "v2.2.0", commit: "c9b8a70", relative: "2 weeks ago", date: "2026-06-05T11:00:00Z", annotated: true, tagger: "Sam Rivera", message: "Minor: search filters + saved carts." },
+        { name: "v2.1.0", commit: "1f2e3d4", relative: "5 weeks ago", date: "2026-05-15T09:30:00Z", annotated: false },
+      ],
       ignored: {
         count: 5,
         samples: ["node_modules", ".next", ".env.local", "coverage", "*.log"],
@@ -946,6 +1156,15 @@ export const projectInsights: ProjectInsights = {
       staged: 0,
       contributors: 6,
       totalCommits: 1284,
+      firstCommitRelative: "2 years ago",
+      trackedFiles: 487,
+      topContributors: [
+        { name: "Jordan Lee", commits: 612 },
+        { name: "Sam Rivera", commits: 398 },
+        { name: "Priya Nair", commits: 201 },
+        { name: "Alex Kim", commits: 54 },
+        { name: "Dana Cho", commits: 19 },
+      ],
     },
     issues: [
       {
@@ -1001,10 +1220,47 @@ export const projectInsights: ProjectInsights = {
         provider: "GitHub Actions",
         triggers: ["push", "pull_request"],
         status: "failing",
+        concurrency: "ci-${{ github.ref }}",
+        permissions: ["contents: read"],
+        env: ["CI", "TURBO_TOKEN"],
+        diagnosis: {
+          runnable: true,
+          localCommand: "act pull_request -j typecheck",
+          notes: [
+            "Reproduce the failing job locally with nektos/act (runs the workflow in Docker).",
+            "Or run the underlying script directly: pnpm typecheck.",
+            "typecheck fails on a type error in app/checkout/actions.ts — see the job log.",
+          ],
+        },
         jobs: [
-          { name: "lint", status: "passing", durationMs: 42000 },
-          { name: "typecheck", status: "failing", durationMs: 38000 },
-          { name: "test", status: "passing", durationMs: 96000 },
+          {
+            name: "lint", status: "passing", durationMs: 42000, runsOn: "ubuntu-latest",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4", diagnostics: ["No dependency cache configured (cache: 'pnpm')."] },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Lint", run: "pnpm lint" },
+            ],
+          },
+          {
+            name: "typecheck", status: "failing", durationMs: 38000, runsOn: "ubuntu-latest", needs: ["lint"],
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Type check", run: "pnpm typecheck", diagnostics: ["This step failed: tsc reported 1 error in app/checkout/actions.ts:67."] },
+            ],
+          },
+          {
+            name: "test", status: "passing", durationMs: 96000, runsOn: "ubuntu-latest", needs: ["lint"],
+            condition: "github.event_name == 'pull_request'",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Unit tests", run: "pnpm test --coverage" },
+            ],
+          },
         ],
         issues: [
           {
@@ -1034,9 +1290,37 @@ export const projectInsights: ProjectInsights = {
         provider: "GitHub Actions",
         triggers: ["push: main"],
         status: "passing",
+        concurrency: "deploy-production",
+        permissions: ["contents: read", "deployments: write"],
+        env: ["VERCEL_ORG_ID", "VERCEL_PROJECT_ID"],
+        schedules: [],
+        diagnosis: {
+          runnable: true,
+          localCommand: "act push -j build",
+          notes: [
+            "Deploy steps reference repository secrets; act needs a local --secret-file to run end to end.",
+            "The build step mirrors `pnpm build`, which you can run directly to reproduce build issues.",
+          ],
+        },
         jobs: [
-          { name: "build", status: "passing", durationMs: 120000 },
-          { name: "deploy", status: "passing", durationMs: 54000 },
+          {
+            name: "build", status: "passing", durationMs: 120000, runsOn: "ubuntu-latest",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Build", run: "pnpm build" },
+            ],
+          },
+          {
+            name: "deploy", status: "passing", durationMs: 54000, runsOn: "ubuntu-latest", needs: ["build"],
+            condition: "github.ref == 'refs/heads/main'",
+            steps: [
+              { name: "Pull Vercel env", run: "vercel pull --yes --environment=production" },
+              { name: "Debug token", run: "echo $DEPLOY_TOKEN", diagnostics: ["Secret printed to logs — remove this echo."] },
+              { name: "Deploy", run: "vercel deploy --prod" },
+            ],
+          },
         ],
         issues: [
           {
