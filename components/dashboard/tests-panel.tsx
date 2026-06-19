@@ -190,8 +190,8 @@ export function TestsPanel({ tests }: { tests: TestsResult }) {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+        <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
           <InsightCard title="Coverage breakdown">
             <div className="flex flex-col gap-3">
               <CoverageStat label="Lines" value={tests.coverage.lines} />

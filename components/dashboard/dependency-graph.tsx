@@ -252,7 +252,7 @@ export function DependencyGraph({ graph }: { graph: DependencyGraph }) {
       </Card>
 
       {/* Detail rail */}
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
         <Card className="gap-0 p-4">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Graph stats</h3>
           <div className="grid grid-cols-2 gap-3">

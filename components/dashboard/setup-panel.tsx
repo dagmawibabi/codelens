@@ -87,8 +87,8 @@ export function SetupPanel({ setup }: { setup: SetupResult }) {
   const largestRows = stats.largestFiles.map((f) => ({ key: f.path, label: f.path, count: f.loc }))
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
         <InsightCard title="Tooling detected">
           <ul className="flex flex-col gap-1.5">
             {setup.tooling.map((t) => (

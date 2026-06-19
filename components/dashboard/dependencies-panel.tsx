@@ -155,9 +155,9 @@ function FindingsView({ deps }: { deps: DependencyResult }) {
   ]
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
       {/* Insights rail */}
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+      <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
         <InsightCard title="Inventory">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col">

@@ -224,8 +224,8 @@ export function DocsPanel({ docs }: { docs: DocsResult }) {
   const tabs = [{ id: "all", label: "All standards" }, ...docs.standards.map((s) => ({ id: s.id, label: s.label }))]
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
         <Card className="flex flex-col items-center gap-1 py-0">
           <ScoreDial
             score={docs.score}

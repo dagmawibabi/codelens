@@ -103,8 +103,8 @@ export function AccessibilityPanel({ accessibility }: { accessibility: A11yResul
     accessibility.score >= 90 ? "var(--sev-ok)" : accessibility.score >= 70 ? "var(--sev-medium)" : "var(--sev-high)"
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+    <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+      <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
         <InsightCard title="Accessibility score">
           <div className="flex items-end justify-between">
             <span className="font-mono text-4xl font-semibold tabular-nums" style={{ color: scoreColor }}>
