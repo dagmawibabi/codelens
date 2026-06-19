@@ -14,6 +14,38 @@ codelens --json          # print the full report as JSON and exit
 codelens --min-score 80  # in --ci mode, fail if health score < 80
 ```
 
+## What the dashboard shows
+
+The dashboard turns one run into a navigable workspace:
+
+- **Overview** — composite health score, severity breakdown, and per-category summaries.
+- **Trends** — an interactive multi-metric chart and per-run history table built from
+  the local `.codelens/` run history (deltas, peak/low/avg).
+- **Code quality** — Lint, Types, and Tests findings from your real toolchain.
+- **Security** — AI security review with severity sub-tabs (Critical → Info).
+- **Dependencies** — real CVE advisories with fix-version guidance.
+- **Database** — schema inspection plus a foreign-key relationship graph.
+- **API surface** — a map of detected routes (Next, Express, Hono, Fastify, SvelteKit,
+  Nuxt) with method, auth, and validation coverage.
+- **Auth, Environment, Network, Git/CI, Docs** — focused panels for each area.
+- **Task Manager** — a built-in kanban board (see below).
+
+### Task Manager (dashboard-only)
+
+Every finding has a **Track task** action — in its detail sheet and inline on each
+list row. Tracking adds it to a kanban board and marks the row so you can see what's
+already on your worklist at a glance.
+
+- **Custom columns** — rename/delete the defaults (To do / In progress / Done) and add
+  your own; drag cards between columns to change status.
+- **Groups/tags** — file tasks under labels like "This sprint" or "Tech debt" and filter
+  by them; create a group inline while tracking.
+- **Detail** — click a tracked finding to reopen its full analysis; click a free-form task
+  to edit its column, priority, group, and notes.
+
+The board is stored only in your browser (localStorage) — it never leaves your machine or
+reaches the CLI. Manage or reset it from **Settings → Task board**.
+
 ## How it works
 
 ```
@@ -79,6 +111,16 @@ The AI pass needs a model key. CodeLens uses the Vercel AI Gateway, so set one o
 export AI_GATEWAY_API_KEY=...   # recommended
 # or
 export OPENAI_API_KEY=...
+```
+
+By default the audit runs on a **free** OpenRouter text model
+(`meta-llama/llama-3.3-70b-instruct:free`) and automatically **falls back** to
+`google/gemini-2.5-flash` if the primary model errors or is rate-limited, so the
+review keeps working out of the box. Override either via env or `.codelensrc`:
+
+```bash
+export CODELENS_MODEL=openai/gpt-5-mini           # primary model
+export CODELENS_FALLBACK_MODEL=anthropic/claude-haiku-4
 ```
 
 Without a key, lint + type-check + dependency advisories still run; only the AI

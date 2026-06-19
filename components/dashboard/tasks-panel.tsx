@@ -48,6 +48,7 @@ import {
   type TaskPriority,
 } from "@/lib/tasks"
 import { FileLink, useInspector } from "./inspector"
+import { issueDocs, type Issue } from "@/lib/issues"
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   high: "High",
@@ -331,6 +332,10 @@ export function TasksPanel() {
         columns={columns}
         groups={groups}
         onClose={() => setDetailTask(null)}
+        onViewIssue={(issue) => {
+          setDetailTask(null)
+          viewIssue(issue)
+        }}
       />
     </div>
   )
@@ -602,11 +607,13 @@ function TaskDetailDialog({
   columns,
   groups,
   onClose,
+  onViewIssue,
 }: {
   task: Task | null
   columns: TaskColumn[]
   groups: TaskGroup[]
   onClose: () => void
+  onViewIssue: (issue: Issue) => void
 }) {
   return (
     <Dialog open={task !== null} onOpenChange={(open) => !open && onClose()}>
@@ -680,7 +687,59 @@ function TaskDetailDialog({
                 />
               </label>
 
-              {task.filePath && (
+              {/* Origin finding — full context for issue-backed tasks. */}
+              {task.source && (
+                <div className="flex flex-col gap-2 rounded-sm border border-border bg-background p-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                      {task.source}
+                    </span>
+                    {task.severity && (
+                      <span className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase text-foreground">
+                        {task.severity}
+                      </span>
+                    )}
+                  </div>
+                  {task.issue?.recommendation && (
+                    <p className="text-pretty text-xs leading-relaxed text-muted-foreground">
+                      {task.issue.recommendation}
+                    </p>
+                  )}
+                  {task.filePath && (
+                    <div className="font-mono text-[11px] text-muted-foreground">
+                      <FileLink path={task.filePath} line={task.line} />
+                    </div>
+                  )}
+                  {task.issue && issueDocs(task.issue).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {issueDocs(task.issue).map((d) => (
+                        <a
+                          key={d.href}
+                          href={d.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3" />
+                          {d.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {task.issue && (
+                    <button
+                      type="button"
+                      onClick={() => onViewIssue(task.issue as Issue)}
+                      className="inline-flex items-center justify-center gap-1.5 self-start rounded-sm border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:bg-secondary"
+                    >
+                      <ExternalLink className="size-3.5 text-muted-foreground" />
+                      View full analysis
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!task.source && task.filePath && (
                 <div className="font-mono text-[11px] text-muted-foreground">
                   <FileLink path={task.filePath} line={task.line} />
                 </div>

@@ -340,6 +340,15 @@ export function seedDemoTasks() {
   const now = Date.now()
   const stamp = (offsetMin: number) => new Date(now - offsetMin * 60_000).toISOString()
 
+  const mkIssue = (
+    source: IssueSource,
+    severity: Severity,
+    title: string,
+    filePath: string,
+    line: number,
+    recommendation: string,
+  ): Issue => ({ source, severity, title, filePath, line, description: title, recommendation })
+
   const seeded: Task[] = [
     {
       id: uid(),
@@ -352,6 +361,14 @@ export function seedDemoTasks() {
       line: 31,
       groupId: "g_sprint",
       note: "Switch to a parameterized query before the next release cut.",
+      issue: mkIssue(
+        "security",
+        "critical",
+        "SQL injection via unparameterized query",
+        "app/api/orders/route.ts",
+        31,
+        "User input is concatenated directly into a SQL string. Use parameterized queries or a query builder to safely bind values.",
+      ),
       createdAt: stamp(180),
       updatedAt: stamp(20),
     },
@@ -365,6 +382,14 @@ export function seedDemoTasks() {
       filePath: "lib/supabase.ts",
       line: 4,
       groupId: "g_sprint",
+      issue: mkIssue(
+        "security",
+        "critical",
+        "Service role key exposed to the client bundle",
+        "lib/supabase.ts",
+        4,
+        "The Supabase service role key is referenced in client code. Move privileged calls to the server and use the anon key on the client.",
+      ),
       createdAt: stamp(170),
       updatedAt: stamp(170),
     },
@@ -378,6 +403,14 @@ export function seedDemoTasks() {
       filePath: "app/api/orders/route.ts",
       line: 22,
       groupId: "g_backlog",
+      issue: mkIssue(
+        "security",
+        "high",
+        "Missing authorization check on order lookup",
+        "app/api/orders/route.ts",
+        22,
+        "Any authenticated user can read any order by id. Scope the query to the session user before returning records.",
+      ),
       createdAt: stamp(160),
       updatedAt: stamp(160),
     },
@@ -387,6 +420,7 @@ export function seedDemoTasks() {
       columnId: "todo",
       priority: "low",
       groupId: "g_backlog",
+      note: "No coverage on the highest-revenue path. Add happy-path + failure cases.",
       createdAt: stamp(90),
       updatedAt: stamp(90),
     },
@@ -400,6 +434,14 @@ export function seedDemoTasks() {
       filePath: "package.json",
       line: 1,
       groupId: "g_backlog",
+      issue: mkIssue(
+        "deps",
+        "medium",
+        "Behind on security patches (4.17.20 → 4.17.21)",
+        "package.json",
+        1,
+        "A transitive dependency has a known prototype-pollution advisory fixed in a patch release. Bump and re-lock.",
+      ),
       createdAt: stamp(300),
       updatedAt: stamp(240),
     },
