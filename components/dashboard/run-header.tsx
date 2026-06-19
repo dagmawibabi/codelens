@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { Play, Terminal, Sparkles, Clock, Search } from "lucide-react"
 import { HelpDialog } from "./help-dialog"
 import { ThemeToggle } from "./theme-toggle"
@@ -15,9 +14,11 @@ interface RunHeaderProps {
   lastRunLabel?: string
   /** Opens the command palette / search. */
   onOpenSearch?: () => void
+  /** Opens the run-checks dialog within the dashboard layout. */
+  onRunChecks?: () => void
 }
 
-export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel, onOpenSearch }: RunHeaderProps) {
+export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel, onOpenSearch, onRunChecks }: RunHeaderProps) {
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/60 sm:px-6">
       {/* Left: compact brand on mobile (sidebar owns it on desktop), project context on desktop */}
@@ -46,14 +47,14 @@ export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel, onOpenS
             last run {lastRunLabel ?? `${(lastRunMs / 1000).toFixed(1)}s`}
           </span>
         )}
-        <Link
-          href="/run"
-          prefetch
+        <button
+          type="button"
+          onClick={onRunChecks}
           className="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Play className="size-4" />
           <span className="hidden sm:inline">Run checks</span>
-        </Link>
+        </button>
         {onOpenSearch && (
           <button
             type="button"

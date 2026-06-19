@@ -69,6 +69,7 @@ export function CommandPalette({
   onOpenChange,
   tabs,
   onSelectTab,
+  onRunChecks,
   report,
   insights,
 }: {
@@ -76,6 +77,7 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void
   tabs: TabDef[]
   onSelectTab: (value: string) => void
+  onRunChecks?: () => void
   report: AnalysisReport
   insights: ProjectInsights
 }) {
@@ -129,7 +131,7 @@ export function CommandPalette({
         <CommandSeparator />
 
         <CommandGroup heading="Actions">
-          <CommandItem value="run checks analysis" onSelect={() => run(() => router.push("/run"))}>
+          <CommandItem value="run checks analysis" onSelect={() => run(() => onRunChecks?.())}>
             <Play />
             <span>Run checks</span>
             <CommandShortcut>R</CommandShortcut>

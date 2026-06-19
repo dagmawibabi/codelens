@@ -50,6 +50,7 @@ import { PerformancePanel } from "./performance-panel"
 import { TestsPanel } from "./tests-panel"
 import { InspectorProvider } from "./inspector"
 import { CommandPalette, type TabDef } from "./command-palette"
+import { RunDialog } from "@/components/run/run-dialog"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
 import { cn } from "@/lib/utils"
@@ -111,6 +112,7 @@ export function Dashboard({
   const { lint, types, security, deps } = report
   const [tab, setTab] = useState("overview")
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [runOpen, setRunOpen] = useState(false)
 
   const counts: Record<string, number> = {
     lint: lint.errorCount + lint.warningCount,
@@ -247,6 +249,7 @@ export function Dashboard({
               lastRunMs={report.meta.durationMs}
               lastRunLabel="just now"
               onOpenSearch={() => setPaletteOpen(true)}
+              onRunChecks={() => setRunOpen(true)}
             />
 
             <Tabs value={tab} onValueChange={setTab} className="flex flex-col gap-4 px-4 py-6 sm:px-6">
@@ -342,9 +345,12 @@ export function Dashboard({
           onOpenChange={setPaletteOpen}
           tabs={TABS}
           onSelectTab={selectTab}
+          onRunChecks={() => setRunOpen(true)}
           report={report}
           insights={insights}
         />
+
+        <RunDialog open={runOpen} onOpenChange={setRunOpen} />
       </InspectorProvider>
     </main>
   )
