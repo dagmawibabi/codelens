@@ -19,7 +19,9 @@ import {
   FlaskConical,
   Terminal,
   Sparkles,
+  Settings,
 } from "lucide-react"
+import Link from "next/link"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -224,8 +226,8 @@ export function Dashboard({
               ))}
             </nav>
 
-            {/* Search pinned to the bottom of the rail */}
-            <div className="shrink-0 border-t border-border p-3">
+            {/* Search + settings pinned to the bottom of the rail */}
+            <div className="flex shrink-0 flex-col gap-1 border-t border-border p-3">
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
@@ -235,6 +237,14 @@ export function Dashboard({
                 <span className="flex-1 text-left">Search</span>
                 <kbd className="rounded-[3px] border border-border bg-secondary px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd>
               </button>
+              <Link
+                href="/settings"
+                prefetch
+                className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+              >
+                <Settings className="size-4 shrink-0" />
+                <span className="flex-1 text-left">Settings</span>
+              </Link>
             </div>
           </aside>
 
