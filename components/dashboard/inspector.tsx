@@ -17,6 +17,7 @@ import {
   KeyRound,
   Globe,
   Accessibility,
+  Sparkles,
 } from "lucide-react"
 import {
   Sheet,
@@ -37,6 +38,7 @@ import { Badge } from "@/components/ui/badge"
 import { severityStyle } from "@/lib/severity"
 import { getFileContent } from "@/lib/file-contents"
 import { EDITORS, absolutePath, issueDocs, type Issue } from "@/lib/issues"
+import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +49,9 @@ interface InspectorContextValue {
   projectRoot: string
   viewFile: (filePath: string, line?: number, column?: number) => void
   viewIssue: (issue: Issue) => void
+  /** Whether an "Ask AI" handler is wired up (the chat tab is available). */
+  canAskAI: boolean
+  askAI: (seed: ChatSeed) => void
 }
 
 const InspectorContext = createContext<InspectorContextValue | null>(null)
@@ -228,6 +233,29 @@ function MetaCell({ label, value, highlight }: { label: string; value: string; h
   )
 }
 
+/** Build a chat seed from an issue so the assistant has full context. */
+function issueToSeed(issue: Issue): ChatSeed {
+  const summary = [
+    issue.description,
+    issue.recommendation ? `Suggested direction: ${issue.recommendation}` : "",
+    issue.ruleId ? `Rule: ${issue.ruleId}` : "",
+    issue.code ? `Code: ${issue.code}` : "",
+    issue.cves?.length ? `Advisories: ${issue.cves.join(", ")}` : "",
+    issue.snippet ? `\nRelevant code:\n${issue.snippet.code}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  return {
+    source: issue.source,
+    title: issue.title,
+    summary,
+    filePath: issue.filePath,
+    line: issue.line,
+    severity: issue.severity,
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Provider                                                            */
 /* ------------------------------------------------------------------ */
@@ -240,9 +268,12 @@ interface FileTarget {
 
 export function InspectorProvider({
   projectRoot,
+  onAskAI,
   children,
 }: {
   projectRoot: string
+  /** When provided, issue sheets show an "Ask AI" button that opens a seeded chat. */
+  onAskAI?: (seed: ChatSeed) => void
   children: React.ReactNode
 }) {
   const [fileTarget, setFileTarget] = useState<FileTarget | null>(null)
@@ -253,10 +284,17 @@ export function InspectorProvider({
     setFileTarget({ filePath, line, column })
   }, [])
   const viewIssue = useCallback((next: Issue) => setIssue(next), [])
+  const askAI = useCallback(
+    (seed: ChatSeed) => {
+      onAskAI?.(seed)
+      setIssue(null)
+    },
+    [onAskAI],
+  )
 
   const value = useMemo(
-    () => ({ projectRoot, viewFile, viewIssue }),
-    [projectRoot, viewFile, viewIssue],
+    () => ({ projectRoot, viewFile, viewIssue, canAskAI: Boolean(onAskAI), askAI }),
+    [projectRoot, viewFile, viewIssue, onAskAI, askAI],
   )
 
   const fileCode = fileTarget ? getFileContent(fileTarget.filePath) : null
@@ -352,6 +390,18 @@ export function InspectorProvider({
               </SheetHeader>
 
               <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-4">
+                {/* Primary actions */}
+                {onAskAI && (
+                  <button
+                    type="button"
+                    onClick={() => askAI(issueToSeed(issue))}
+                    className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-3 py-2.5 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    <Sparkles className="size-4" />
+                    Ask AI about this issue
+                  </button>
+                )}
+
                 {/* Location */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button

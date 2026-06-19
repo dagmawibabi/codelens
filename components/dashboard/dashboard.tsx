@@ -21,6 +21,7 @@ import {
   Terminal,
   Sparkles,
   Settings,
+  MessageSquare,
 } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -53,9 +54,11 @@ import { InspectorProvider } from "./inspector"
 import { CommandPalette, type TabDef } from "./command-palette"
 import { EmptyState } from "./empty-state"
 import { SettingsView } from "@/components/settings/settings-view"
+import { ChatView } from "@/components/chat/chat-view"
 import { RunDialog } from "@/components/run/run-dialog"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
+import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
 interface NavGroup {
@@ -109,6 +112,8 @@ function buildNavGroups(authPresent: boolean): NavGroup[] {
 
 /** Settings lives outside the analysis nav but behaves like any other tab. */
 const SETTINGS_TAB: TabDef = { value: "settings", label: "Settings", icon: Settings }
+/** AI Chat also lives in the pinned footer, above Settings. */
+const CHAT_TAB: TabDef = { value: "chat", label: "AI Chat", icon: MessageSquare }
 
 export function Dashboard({
   report,
@@ -132,6 +137,15 @@ export function Dashboard({
   const [tab, setTab] = useState("overview")
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
+
+  // "Ask AI" handoff: a detail sheet seeds a new chat and jumps to the chat tab.
+  const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null)
+  const [chatSeedNonce, setChatSeedNonce] = useState<number | undefined>(undefined)
+  const handleAskAI = useCallback((seed: ChatSeed) => {
+    setChatSeed(seed)
+    setChatSeedNonce((n) => (n ?? 0) + 1)
+    setTab("chat")
+  }, [])
 
   // Auth tab is conditional on Better Auth being present in the project.
   const navGroups = useMemo(() => buildNavGroups(insights.auth.present), [insights.auth.present])
@@ -157,7 +171,7 @@ export function Dashboard({
 
   const selectTab = useCallback((value: string) => setTab(value), [])
 
-  const activeTab = [...tabs, SETTINGS_TAB].find((t) => t.value === tab) ?? tabs[0]
+  const activeTab = [...tabs, CHAT_TAB, SETTINGS_TAB].find((t) => t.value === tab) ?? tabs[0]
 
   // Global keyboard shortcuts: Cmd/Ctrl+K opens search; number keys switch tabs.
   useEffect(() => {
@@ -194,7 +208,7 @@ export function Dashboard({
 
   return (
     <main className="min-h-svh bg-background">
-      <InspectorProvider projectRoot={report.meta.project.root}>
+      <InspectorProvider projectRoot={report.meta.project.root} onAskAI={handleAskAI}>
         <div className="flex">
           {/* Desktop sidebar — sticky, full viewport height */}
           <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-border bg-card lg:flex">
@@ -252,8 +266,23 @@ export function Dashboard({
               ))}
             </nav>
 
-            {/* Settings pinned to the bottom of the rail — behaves like a tab */}
+            {/* AI Chat + Settings pinned to the bottom of the rail — behave like tabs */}
             <div className="flex shrink-0 flex-col gap-1 border-t border-border p-3">
+              <button
+                type="button"
+                aria-current={tab === "chat" ? "page" : undefined}
+                onClick={() => setTab("chat")}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors",
+                  tab === "chat"
+                    ? "bg-secondary font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                )}
+              >
+                <MessageSquare className="size-4 shrink-0" />
+                <span className="flex-1 text-left">AI Chat</span>
+                <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+              </button>
               <button
                 type="button"
                 aria-current={tab === "settings" ? "page" : undefined}
@@ -285,7 +314,7 @@ export function Dashboard({
               onRunChecks={() => setRunOpen(true)}
             />
 
-            {empty && tab !== "settings" ? (
+            {empty && tab !== "settings" && tab !== "chat" ? (
               <EmptyState
                 onRunChecks={() => setRunOpen(true)}
                 onLoadDemo={() => onToggleDemo?.(true)}
@@ -320,6 +349,12 @@ export function Dashboard({
                     ))}
                     <SelectGroup>
                       <SelectLabel>Configuration</SelectLabel>
+                      <SelectItem value={CHAT_TAB.value}>
+                        <span className="flex items-center gap-2">
+                          <CHAT_TAB.icon className="size-4 text-muted-foreground" />
+                          {CHAT_TAB.label}
+                        </span>
+                      </SelectItem>
                       <SelectItem value={SETTINGS_TAB.value}>
                         <span className="flex items-center gap-2">
                           <SETTINGS_TAB.icon className="size-4 text-muted-foreground" />
@@ -387,6 +422,9 @@ export function Dashboard({
                 </TabsContent>
                 <TabsContent value="docs">
                   <DocsPanel docs={insights.docs} />
+                </TabsContent>
+                <TabsContent value="chat">
+                  <ChatView pendingSeed={chatSeed} seedNonce={chatSeedNonce} />
                 </TabsContent>
                 <TabsContent value="settings">
                   <SettingsView />
