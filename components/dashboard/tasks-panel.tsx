@@ -16,13 +16,18 @@ import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import {
   useTasks,
+  useGroups,
   addTask,
+  addGroup,
+  removeGroup,
+  assignGroup,
   cycleStatus,
   removeTask,
   clearDone,
   updateTask,
   TASK_STATUS_LABEL,
   type Task,
+  type TaskGroup,
   type TaskStatus,
   type TaskPriority,
 } from "@/lib/tasks"
@@ -42,13 +47,31 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 
 export function TasksPanel() {
   const tasks = useTasks()
+  const groups = useGroups()
   const [draft, setDraft] = useState("")
   const [filterPriority, setFilterPriority] = useState<TaskPriority | "all">("all")
+  // Group filter: "all" | "none" (ungrouped) | a group id.
+  const [groupFilter, setGroupFilter] = useState<string>("all")
+  const [newGroup, setNewGroup] = useState("")
 
-  const filtered = useMemo(
-    () => (filterPriority === "all" ? tasks : tasks.filter((t) => t.priority === filterPriority)),
-    [tasks, filterPriority],
-  )
+  const filtered = useMemo(() => {
+    return tasks.filter((t) => {
+      if (filterPriority !== "all" && t.priority !== filterPriority) return false
+      if (groupFilter === "all") return true
+      if (groupFilter === "none") return !t.groupId
+      return t.groupId === groupFilter
+    })
+  }, [tasks, filterPriority, groupFilter])
+
+  const groupCount = useMemo(() => {
+    const map = new Map<string, number>()
+    let ungrouped = 0
+    for (const t of tasks) {
+      if (t.groupId) map.set(t.groupId, (map.get(t.groupId) ?? 0) + 1)
+      else ungrouped++
+    }
+    return { map, ungrouped }
+  }, [tasks])
 
   const byStatus = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = { todo: [], "in-progress": [], done: [] }
@@ -62,8 +85,19 @@ export function TasksPanel() {
     e.preventDefault()
     const title = draft.trim()
     if (!title) return
-    addTask({ title })
+    // If a specific group is selected as the filter, file the new task there.
+    const groupId = groupFilter !== "all" && groupFilter !== "none" ? groupFilter : undefined
+    addTask({ title, groupId })
     setDraft("")
+  }
+
+  function submitGroup(e: React.FormEvent) {
+    e.preventDefault()
+    const name = newGroup.trim()
+    if (!name) return
+    const group = addGroup(name)
+    setNewGroup("")
+    setGroupFilter(group.id)
   }
 
   return (
@@ -107,6 +141,54 @@ export function TasksPanel() {
         </div>
       </div>
 
+      {/* Group / tag bar */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <GroupChip
+          label="All"
+          count={tasks.length}
+          active={groupFilter === "all"}
+          onClick={() => setGroupFilter("all")}
+        />
+        {groupCount.ungrouped > 0 && (
+          <GroupChip
+            label="Ungrouped"
+            count={groupCount.ungrouped}
+            active={groupFilter === "none"}
+            onClick={() => setGroupFilter("none")}
+          />
+        )}
+        {groups.map((g) => (
+          <GroupChip
+            key={g.id}
+            label={g.name}
+            count={groupCount.map.get(g.id) ?? 0}
+            active={groupFilter === g.id}
+            onClick={() => setGroupFilter(g.id)}
+            onRemove={() => {
+              removeGroup(g.id)
+              if (groupFilter === g.id) setGroupFilter("all")
+            }}
+          />
+        ))}
+        <form onSubmit={submitGroup} className="ml-auto flex items-center gap-1">
+          <input
+            value={newGroup}
+            onChange={(e) => setNewGroup(e.target.value)}
+            placeholder="New group…"
+            aria-label="New group name"
+            className="w-32 rounded-sm border border-border bg-card px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <button
+            type="submit"
+            disabled={!newGroup.trim()}
+            aria-label="Create group"
+            className="inline-flex size-7 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </form>
+      </div>
+
       {tasks.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 p-10 text-center">
           <ClipboardList className="size-8 text-muted-foreground" />
@@ -143,7 +225,7 @@ export function TasksPanel() {
                 {byStatus[key].length === 0 ? (
                   <p className="px-1 py-4 text-center font-mono text-[11px] text-muted-foreground/60">empty</p>
                 ) : (
-                  byStatus[key].map((t) => <TaskItem key={t.id} task={t} />)
+                  byStatus[key].map((t) => <TaskItem key={t.id} task={t} groups={groups} />)
                 )}
               </div>
             </div>
@@ -154,9 +236,10 @@ export function TasksPanel() {
   )
 }
 
-function TaskItem({ task }: { task: Task }) {
+function TaskItem({ task, groups }: { task: Task; groups: TaskGroup[] }) {
   const canPrev = task.status !== "todo"
   const canNext = task.status !== "done"
+  const group = groups.find((g) => g.id === task.groupId)
 
   return (
     <Card className="group gap-0 p-2.5">
@@ -180,9 +263,15 @@ function TaskItem({ task }: { task: Task }) {
         </button>
       </div>
 
-      {/* Source provenance */}
-      {(task.source || task.filePath) && (
+      {/* Source provenance + group */}
+      {(task.source || task.filePath || group) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {group && (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] text-foreground">
+              <span className="size-1.5 rounded-full bg-foreground" aria-hidden />
+              {group.name}
+            </span>
+          )}
           {task.source && (
             <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[9px] uppercase text-muted-foreground">
               {task.source}
@@ -196,18 +285,33 @@ function TaskItem({ task }: { task: Task }) {
 
       {/* Controls */}
       <div className="mt-2 flex items-center justify-between gap-2">
-        <select
-          value={task.priority}
-          onChange={(e) => updateTask(task.id, { priority: e.target.value as TaskPriority })}
-          className="rounded-sm border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          aria-label="Task priority"
-        >
-          {(["high", "medium", "low"] as const).map((p) => (
-            <option key={p} value={p}>
-              {PRIORITY_LABEL[p]}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-1">
+          <select
+            value={task.priority}
+            onChange={(e) => updateTask(task.id, { priority: e.target.value as TaskPriority })}
+            className="rounded-sm border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Task priority"
+          >
+            {(["high", "medium", "low"] as const).map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY_LABEL[p]}
+              </option>
+            ))}
+          </select>
+          <select
+            value={task.groupId ?? ""}
+            onChange={(e) => assignGroup(task.id, e.target.value || undefined)}
+            className="max-w-24 rounded-sm border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            aria-label="Task group"
+          >
+            <option value="">No group</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="flex items-center gap-0.5">
           <button
@@ -231,6 +335,46 @@ function TaskItem({ task }: { task: Task }) {
         </div>
       </div>
     </Card>
+  )
+}
+
+function GroupChip({
+  label,
+  count,
+  active,
+  onClick,
+  onRemove,
+}: {
+  label: string
+  count: number
+  active: boolean
+  onClick: () => void
+  onRemove?: () => void
+}) {
+  return (
+    <span
+      className={cn(
+        "group/chip inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 text-xs transition-colors",
+        active
+          ? "border-foreground/40 bg-secondary text-foreground"
+          : "border-border bg-card text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <button type="button" onClick={onClick} className="inline-flex items-center gap-1.5">
+        {label}
+        <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{count}</span>
+      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Delete group ${label}`}
+          className="text-muted-foreground/50 transition-colors hover:text-foreground"
+        >
+          <X className="size-3" />
+        </button>
+      )}
+    </span>
   )
 }
 

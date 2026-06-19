@@ -20,6 +20,7 @@ import {
   Sparkles,
   ClipboardCheck,
   ClipboardList,
+  Plus,
 } from "lucide-react"
 import {
   Sheet,
@@ -40,7 +41,7 @@ import { Badge } from "@/components/ui/badge"
 import { severityStyle } from "@/lib/severity"
 import { getFileContent } from "@/lib/file-contents"
 import { EDITORS, absolutePath, issueDocs, type Issue } from "@/lib/issues"
-import { addTaskFromIssue } from "@/lib/tasks"
+import { addTaskFromIssue, addGroup, useGroups } from "@/lib/tasks"
 import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
@@ -684,26 +685,89 @@ export function InspectorProvider({
 /* ------------------------------------------------------------------ */
 
 function TrackTaskButton({ issue }: { issue: Issue }) {
+  const groups = useGroups()
   const [state, setState] = useState<"idle" | "added" | "exists">("idle")
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState("")
 
-  function track() {
-    const { created } = addTaskFromIssue(issue)
+  function track(groupId?: string) {
+    const { created } = addTaskFromIssue(issue, groupId)
     setState(created ? "added" : "exists")
     window.setTimeout(() => setState("idle"), 1600)
+  }
+
+  function createAndTrack() {
+    const name = newName.trim()
+    if (!name) return
+    const group = addGroup(name)
+    setNewName("")
+    setCreating(false)
+    track(group.id)
   }
 
   const label = state === "added" ? "Tracked" : state === "exists" ? "Already tracked" : "Track task"
   const Icon = state === "idle" ? ClipboardList : ClipboardCheck
 
   return (
-    <button
-      type="button"
-      onClick={track}
-      className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:bg-secondary"
-    >
-      <Icon className="size-3.5 text-muted-foreground" />
-      {label}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:bg-secondary">
+        <Icon className="size-3.5 text-muted-foreground" />
+        {label}
+        <ChevronRight className="size-3 rotate-90 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <p className="px-1.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          Add to task board
+        </p>
+        <DropdownMenuItem onClick={() => track(undefined)}>
+          <ClipboardList className="size-3.5 text-muted-foreground" />
+          Track (no group)
+        </DropdownMenuItem>
+        {groups.length > 0 && <DropdownMenuSeparator />}
+        {groups.map((g) => (
+          <DropdownMenuItem key={g.id} onClick={() => track(g.id)}>
+            <span className="size-2 rounded-full border border-muted-foreground" aria-hidden />
+            {g.name}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        {creating ? (
+          <div className="flex items-center gap-1.5 px-1.5 py-1" onKeyDown={(e) => e.stopPropagation()}>
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  createAndTrack()
+                }
+              }}
+              placeholder="New group name"
+              className="w-full rounded-sm border border-border bg-background px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={createAndTrack}
+              disabled={!newName.trim()}
+              className="rounded-sm bg-primary px-2 py-1 font-mono text-[11px] text-primary-foreground disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        ) : (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.preventDefault()
+              setCreating(true)
+            }}
+          >
+            <Plus className="size-3.5 text-muted-foreground" />
+            New group…
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

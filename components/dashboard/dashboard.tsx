@@ -41,6 +41,7 @@ import {
 import { RunHeader } from "./run-header"
 import { OverviewPanel } from "./overview-panel"
 import { TrendsPanel } from "./trends-panel"
+import { TasksPanel } from "./tasks-panel"
 import { LintPanel } from "./lint-panel"
 import { TypesPanel } from "./types-panel"
 import { SecurityPanel } from "./security-panel"
@@ -67,6 +68,7 @@ import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
 import type { ChatSeed } from "@/lib/chat-types"
 import { loadSettings } from "@/lib/settings"
+import { useOpenTaskCount } from "@/lib/tasks"
 import { cn } from "@/lib/utils"
 
 interface NavGroup {
@@ -84,6 +86,7 @@ function buildNavGroups(authPresent: boolean, apiPresent: boolean): NavGroup[] {
       items: [
         { value: "overview", label: "Overview", icon: LayoutDashboard },
         { value: "trends", label: "Trends", icon: LineChart },
+        { value: "tasks", label: "Task Manager", icon: ClipboardList },
       ],
     },
     {
@@ -180,7 +183,12 @@ export function Dashboard({
   )
   const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
 
+  // Open (not-done) tasks across the board — keeps the nav badge in sync as
+  // issues are tracked or completed from anywhere in the app.
+  const openTaskCount = useOpenTaskCount()
+
   const counts: Record<string, number> = {
+    tasks: openTaskCount,
     lint: lint.errorCount + lint.warningCount,
     types: types.diagnostics.length,
     tests: insights.tests.findings.length,
@@ -415,6 +423,9 @@ export function Dashboard({
                 </TabsContent>
                 <TabsContent value="trends">
                   <TrendsPanel history={history} report={report} />
+                </TabsContent>
+                <TabsContent value="tasks">
+                  <TasksPanel />
                 </TabsContent>
                 <TabsContent value="lint">
                   <LintPanel lint={lint} />
