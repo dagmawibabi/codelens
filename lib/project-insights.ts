@@ -1797,6 +1797,65 @@ export const projectInsights: ProjectInsights = {
         note: "Healthy — sub-millisecond cache reads.",
       },
     ],
+    tables: [
+      {
+        name: "users",
+        connectionId: "db1",
+        kind: "table",
+        rowCount: 2840,
+        sizeKb: 450,
+        filePath: "lib/schema/users.ts",
+        columns: [
+          { name: "id", type: "uuid", flags: ["pk"], references: undefined },
+          { name: "email", type: "varchar(255)", flags: ["unique", "index"], references: undefined },
+          { name: "name", type: "varchar(255)", flags: [], references: undefined },
+          { name: "createdAt", type: "timestamp", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "users_email_idx", columns: ["email"], unique: true },
+          { name: "users_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+      {
+        name: "orders",
+        connectionId: "db1",
+        kind: "table",
+        rowCount: 18927,
+        sizeKb: 3200,
+        filePath: "lib/schema/orders.ts",
+        columns: [
+          { name: "id", type: "uuid", flags: ["pk"], references: undefined },
+          { name: "userId", type: "uuid", flags: ["fk", "index"], references: "users.id" },
+          { name: "total", type: "decimal(10,2)", flags: [], references: undefined },
+          { name: "status", type: "enum('pending','completed','failed')", flags: ["index"], references: undefined },
+          { name: "createdAt", type: "timestamp", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "orders_user_idx", columns: ["userId"], unique: false },
+          { name: "orders_status_idx", columns: ["status"], unique: false },
+          { name: "orders_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+      {
+        name: "events",
+        connectionId: "db2",
+        kind: "collection",
+        rowCount: 4600000,
+        sizeKb: 185000,
+        filePath: "lib/models/event.ts",
+        columns: [
+          { name: "_id", type: "ObjectId", flags: ["pk"], references: undefined },
+          { name: "type", type: "string", flags: ["index"], references: undefined },
+          { name: "userId", type: "string", flags: ["fk"], references: "users._id" },
+          { name: "data", type: "object", flags: [], references: undefined },
+          { name: "createdAt", type: "Date", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "events_type_idx", columns: ["type"], unique: false },
+          { name: "events_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+    ],
   },
 
   auth: {

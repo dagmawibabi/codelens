@@ -1,14 +1,14 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Database, ShieldCheck, Lock, LockOpen, Layers, Timer, Gauge, AlertTriangle } from "lucide-react"
+import { Database, ShieldCheck, Lock, LockOpen, Layers, Timer, Gauge, AlertTriangle, ChevronRight, Key, Activity } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
 import { FileLink, useInspector } from "./inspector"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { dbToIssue } from "@/lib/issues"
-import type { DbResult, DbFinding, DbIssueKind, DbEngine, DbConnection, DbQuery } from "@/lib/project-insights"
+import type { DbResult, DbFinding, DbIssueKind, DbEngine, DbConnection, DbQuery, DbTable } from "@/lib/project-insights"
 import { cn } from "@/lib/utils"
 
 const KIND_LABEL: Record<DbIssueKind, string> = {
@@ -115,6 +115,86 @@ function FindingRow({ f }: { f: DbFinding }) {
   )
 }
 
+function TableRow({ table, expanded, onToggle }: { table: DbTable; expanded: boolean; onToggle: () => void }) {
+  const pkColumns = table.columns.filter((c) => c.flags.includes("pk"))
+  const fkColumns = table.columns.filter((c) => c.flags.includes("fk"))
+
+  return (
+    <div className="border-t border-border first:border-t-0">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
+      >
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center">
+            <ChevronRight className={cn("size-4 transition-transform", expanded && "rotate-90")} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="truncate font-mono text-sm font-medium text-foreground">{table.name}</span>
+              <span className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                {table.kind}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-muted-foreground">
+              <span>{table.columns.length} columns</span>
+              {table.rowCount > 0 && <span>{table.rowCount.toLocaleString()} rows</span>}
+              {table.sizeKb && <span>{(table.sizeKb / 1024).toFixed(1)} MB</span>}
+              {table.indexes.length > 0 && <span>{table.indexes.length} indexes</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded columns view */}
+      {expanded && (
+        <div className="border-t border-border/50 bg-secondary/20 p-4">
+          <div className="flex flex-col gap-3">
+            {table.columns.map((col) => (
+              <div key={col.name} className="flex items-start justify-between gap-2 font-mono text-xs">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{col.name}</span>
+                    <span className="text-muted-foreground/70">{col.type}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {col.flags.includes("pk") && (
+                      <span className="inline-flex items-center gap-1 rounded-sm bg-[color:var(--sev-ok)]/12 px-1.5 py-0.5 text-[color:var(--sev-ok)]">
+                        <Key className="size-3" />
+                        PK
+                      </span>
+                    )}
+                    {col.flags.includes("fk") && (
+                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-muted-foreground">Link</span>
+                    )}
+                    {col.flags.includes("unique") && (
+                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-muted-foreground">Unique</span>
+                    )}
+                    {col.flags.includes("index") && (
+                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-muted-foreground">Index</span>
+                    )}
+                    {col.flags.includes("nullable") && (
+                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 text-muted-foreground">Nullable</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function QueryRow({ q }: { q: DbQuery }) {
   const slow = q.estMs >= 1000
   const color = q.estMs >= 1500 ? "var(--sev-critical)" : q.estMs >= 1000 ? "var(--sev-high)" : q.estMs >= 300 ? "var(--sev-medium)" : "var(--sev-ok)"
@@ -177,6 +257,18 @@ export function DatabasePanel({ database }: { database: DbResult }) {
   }))
 
   const slowQueries = useMemo(() => [...database.queries].sort((a, b) => b.estMs - a.estMs), [database.queries])
+  
+  // Schema / table explorer state
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set())
+  const [viewTab, setViewTab] = useState<"findings" | "schema">("findings")
+  
+  const tables = database.tables ?? []
+  const toggleTableExpand = (tableName: string) => {
+    const next = new Set(expandedTables)
+    if (next.has(tableName)) next.delete(tableName)
+    else next.add(tableName)
+    setExpandedTables(next)
+  }
 
   const filterTabs: { key: Filter; label: string; count: number }[] = [
     { key: "all", label: "All", count: database.findings.length },
@@ -226,6 +318,38 @@ export function DatabasePanel({ database }: { database: DbResult }) {
       </aside>
 
       <div className="flex min-w-0 flex-col gap-6">
+        {/* Main view tabs */}
+        <div className="flex items-center gap-1 rounded-sm border border-border bg-card p-1">
+          <button
+            type="button"
+            onClick={() => setViewTab("findings")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+              viewTab === "findings" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <AlertTriangle className="size-4" />
+            Findings
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">{database.findings.length}</span>
+          </button>
+          {tables.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setViewTab("schema")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+                viewTab === "schema" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Layers className="size-4" />
+              Schema
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">{tables.length}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Findings view */}
+        {viewTab === "findings" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-1 rounded-sm border border-border bg-card p-1">
             {filterTabs.map((t) => (
@@ -280,6 +404,37 @@ export function DatabasePanel({ database }: { database: DbResult }) {
             ))}
           </Card>
         </section>
+        )}
+
+        {/* Schema / Tables view */}
+        {viewTab === "schema" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <Layers className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Database schema</h3>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {tables.length} tables
+            </Badge>
+          </div>
+          {tables.length === 0 ? (
+            <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+              <Activity className="size-5" />
+              Schema not yet discovered. Run a database introspection scan.
+            </Card>
+          ) : (
+            <Card className="gap-0 overflow-hidden py-0">
+              {tables.map((t) => (
+                <TableRow
+                  key={t.name}
+                  table={t}
+                  expanded={expandedTables.has(t.name)}
+                  onToggle={() => toggleTableExpand(t.name)}
+                />
+              ))}
+            </Card>
+          )}
+        </div>
+        )}
       </div>
     </div>
   )
