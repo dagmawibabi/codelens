@@ -14,6 +14,9 @@ import {
   RefreshCw,
   MessageSquare,
   GitBranch,
+  ClipboardList,
+  Trash2,
+  Eraser,
 } from "lucide-react"
 import {
   Select,
@@ -37,6 +40,14 @@ import {
   type ModelOption,
   type ProviderId,
 } from "@/lib/settings"
+import {
+  useTasks,
+  useColumns,
+  useGroups,
+  clearDone,
+  clearAllTasks,
+  resetBoard,
+} from "@/lib/tasks"
 import { cn } from "@/lib/utils"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -349,6 +360,14 @@ export function SettingsView() {
             </div>
           </div>
         </SectionCard>
+
+        <SectionCard
+          icon={ClipboardList}
+          title="Task board"
+          desc="Your remediation worklist is stored locally in this browser — it never leaves your machine or reaches the CLI."
+        >
+          <TaskBoardSection />
+        </SectionCard>
       </div>
 
       {/* Sticky side rail */}
@@ -423,6 +442,136 @@ function ToggleRow({
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{hint}</p>
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  )
+}
+
+function TaskBoardSection() {
+  const tasks = useTasks()
+  const columns = useColumns()
+  const groups = useGroups()
+  // Two-step confirmation for the destructive reset.
+  const [confirming, setConfirming] = useState<"clear" | "reset" | null>(null)
+
+  const doneIds = new Set(columns.filter((c) => c.done).map((c) => c.id))
+  const doneCount = tasks.filter((t) => doneIds.has(t.columnId)).length
+
+  const stats = [
+    { label: "Tasks", value: tasks.length },
+    { label: "Completed", value: doneCount },
+    { label: "Columns", value: columns.length },
+    { label: "Groups", value: groups.length },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-sm border border-border bg-background px-3 py-2.5">
+            <p className="font-mono text-lg tabular-nums text-foreground">{s.value}</p>
+            <p className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col divide-y divide-border">
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p className="font-mono text-sm text-foreground">Clear completed tasks</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Remove every task in a column marked as done.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clearDone}
+            disabled={doneCount === 0}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          >
+            <Eraser className="size-3.5" />
+            Clear {doneCount > 0 ? doneCount : ""}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p className="font-mono text-sm text-foreground">Delete all tasks</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Empty the board. Your columns and groups are kept.
+            </p>
+          </div>
+          {confirming === "clear" ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllTasks()
+                  setConfirming(null)
+                }}
+                className="rounded-sm bg-destructive px-2.5 py-1.5 font-mono text-xs text-destructive-foreground"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(null)}
+                className="rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming("clear")}
+              disabled={tasks.length === 0}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+            >
+              <Trash2 className="size-3.5" />
+              Delete all
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p className="font-mono text-sm text-foreground">Reset board to defaults</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              Restore the default columns and groups and remove all tasks.
+            </p>
+          </div>
+          {confirming === "reset" ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  resetBoard()
+                  setConfirming(null)
+                }}
+                className="rounded-sm bg-destructive px-2.5 py-1.5 font-mono text-xs text-destructive-foreground"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(null)}
+                className="rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming("reset")}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-destructive/40 px-2.5 py-1.5 font-mono text-xs text-destructive transition-colors hover:bg-destructive/10"
+            >
+              <RotateCcw className="size-3.5" />
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

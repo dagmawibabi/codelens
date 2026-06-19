@@ -322,6 +322,105 @@ export function clearDone() {
   write(read().filter((t) => !doneIds.has(t.columnId)))
 }
 
+/** Delete every task on the board (columns and groups are preserved). */
+export function clearAllTasks() {
+  write([])
+}
+
+/**
+ * Seed a small, realistic worklist that mirrors findings in the bundled demo
+ * report. Issue-backed entries use the same `source/filePath/line/title` key as
+ * the real findings, so the "tracked" indicators light up across the issue
+ * tabs. No-ops if the board already has tasks (never clobbers real work).
+ */
+export function seedDemoTasks() {
+  if (typeof window === "undefined") return
+  if (read().length > 0) return
+
+  const now = Date.now()
+  const stamp = (offsetMin: number) => new Date(now - offsetMin * 60_000).toISOString()
+
+  const seeded: Task[] = [
+    {
+      id: uid(),
+      title: "SQL injection via unparameterized query",
+      columnId: "in-progress",
+      priority: "high",
+      source: "security",
+      severity: "critical",
+      filePath: "app/api/orders/route.ts",
+      line: 31,
+      groupId: "g_sprint",
+      note: "Switch to a parameterized query before the next release cut.",
+      createdAt: stamp(180),
+      updatedAt: stamp(20),
+    },
+    {
+      id: uid(),
+      title: "Service role key exposed to the client bundle",
+      columnId: "todo",
+      priority: "high",
+      source: "security",
+      severity: "critical",
+      filePath: "lib/supabase.ts",
+      line: 4,
+      groupId: "g_sprint",
+      createdAt: stamp(170),
+      updatedAt: stamp(170),
+    },
+    {
+      id: uid(),
+      title: "Missing authorization check on order lookup",
+      columnId: "todo",
+      priority: "medium",
+      source: "security",
+      severity: "high",
+      filePath: "app/api/orders/route.ts",
+      line: 22,
+      groupId: "g_backlog",
+      createdAt: stamp(160),
+      updatedAt: stamp(160),
+    },
+    {
+      id: uid(),
+      title: "Write integration tests for the checkout flow",
+      columnId: "todo",
+      priority: "low",
+      groupId: "g_backlog",
+      createdAt: stamp(90),
+      updatedAt: stamp(90),
+    },
+    {
+      id: uid(),
+      title: "Behind on security patches (4.17.20 → 4.17.21)",
+      columnId: "done",
+      priority: "medium",
+      source: "deps",
+      severity: "medium",
+      filePath: "package.json",
+      line: 1,
+      groupId: "g_backlog",
+      createdAt: stamp(300),
+      updatedAt: stamp(240),
+    },
+  ]
+
+  write(seeded)
+}
+
+/**
+ * Reset the entire board to its factory state: default columns, default
+ * groups, and no tasks. Used by the Settings → Task board controls.
+ */
+export function resetBoard() {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
+  window.localStorage.setItem(COLUMNS_KEY, JSON.stringify(DEFAULT_COLUMNS))
+  window.localStorage.setItem(GROUPS_KEY, JSON.stringify(DEFAULT_GROUPS))
+  window.localStorage.removeItem(LEGACY_KEY)
+  window.dispatchEvent(new CustomEvent(EVENT))
+}
+
 /* ------------------------------------------------------------------ */
 /* Groups                                                              */
 /* ------------------------------------------------------------------ */

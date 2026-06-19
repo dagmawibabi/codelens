@@ -306,7 +306,7 @@ export function TasksPanel() {
                 <button
                   type="submit"
                   disabled={!newColumn.trim()}
-                  aria-label="Add column"
+                  aria-label="Confirm new column"
                   className="inline-flex size-7 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground disabled:opacity-40"
                 >
                   <Check className="size-3.5" />
@@ -524,7 +524,6 @@ function TaskItem({
   onDrop: () => void
 }) {
   const group = groups.find((g) => g.id === task.groupId)
-  const isDone = false // strike-through handled by detail; columns are user-defined now
 
   return (
     <div
@@ -558,10 +557,7 @@ function TaskItem({
           <button
             type="button"
             onClick={onOpen}
-            className={cn(
-              "min-w-0 flex-1 text-left text-pretty text-sm leading-snug transition-colors hover:text-foreground",
-              isDone ? "text-muted-foreground line-through" : "text-foreground",
-            )}
+            className="min-w-0 flex-1 text-pretty text-left text-sm leading-snug text-foreground transition-colors hover:text-foreground"
           >
             {task.title}
           </button>
