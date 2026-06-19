@@ -18,10 +18,12 @@ import {
   FileCode,
   Hash,
   Boxes,
+  Network,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar } from "./insights"
+import { DbRelationshipGraph } from "./db-relationship-graph"
 import { FileLink, useInspector } from "./inspector"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { dbToIssue } from "@/lib/issues"
@@ -71,7 +73,7 @@ const DETECTION_LABEL: Record<DbDetectionSource, string> = {
   config: "Config",
 }
 
-type MainTab = "connections" | "schema" | "queries" | "findings"
+type MainTab = "connections" | "schema" | "relationships" | "queries" | "findings"
 type SevFilter = "all" | Severity
 
 function EngineBadge({ engine }: { engine: DbEngine }) {
@@ -452,6 +454,21 @@ export function DatabasePanel({ database }: { database: DbResult }) {
     })).filter((t) => t.count > 0),
   ]
 
+  // Count foreign-key relationships across the schema (for the tab badge).
+  const relationshipCount = useMemo(() => {
+    const names = new Set(tables.map((t) => t.name))
+    let count = 0
+    for (const t of tables) {
+      for (const col of t.columns) {
+        if (!col.references) continue
+        const dot = col.references.lastIndexOf(".")
+        const target = dot > 0 ? col.references.slice(0, dot) : ""
+        if (target && target !== t.name && names.has(target)) count++
+      }
+    }
+    return count
+  }, [tables])
+
   // Group schema tables by connection for the explorer.
   const tablesByConnection = useMemo(() => {
     const map = new Map<string, DbTable[]>()
@@ -529,6 +546,13 @@ export function DatabasePanel({ database }: { database: DbResult }) {
             icon={<Layers className="size-4" />}
             label="Schema"
             count={tables.length}
+          />
+          <TabButton
+            active={tab === "relationships"}
+            onClick={() => setTab("relationships")}
+            icon={<Network className="size-4" />}
+            label="Relationships"
+            count={relationshipCount}
           />
           <TabButton
             active={tab === "queries"}
@@ -619,6 +643,20 @@ export function DatabasePanel({ database }: { database: DbResult }) {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Relationships tab — ER diagram */}
+        {tab === "relationships" && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <Network className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">Relationship map</h3>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {relationshipCount} {relationshipCount === 1 ? "relation" : "relations"}
+              </Badge>
+            </div>
+            <DbRelationshipGraph tables={tables} connections={database.connections} />
           </div>
         )}
 

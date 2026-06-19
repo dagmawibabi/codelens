@@ -10,6 +10,7 @@ export interface CodeLensFileConfig {
     enabled?: boolean
     provider?: string
     model?: string
+    fallbackModel?: string
     maxFiles?: number
     redactSecrets?: boolean
   }
@@ -28,6 +29,8 @@ export interface CodeLensFileConfig {
 export interface ResolvedConfig {
   aiEnabled: boolean
   model: string
+  /** Model used when the primary model errors or is unavailable. */
+  fallbackModel: string
   maxFiles: number
   redactSecrets: boolean
   chatEnabled: boolean
@@ -37,7 +40,10 @@ export interface ResolvedConfig {
 
 const DEFAULTS: ResolvedConfig = {
   aiEnabled: true,
-  model: "anthropic/claude-opus-4.6",
+  // A text model that's free to run on OpenRouter; the audit falls back to
+  // FALLBACK_MODEL (Gemini 2.5 Flash via the AI Gateway) if it's unavailable.
+  model: "meta-llama/llama-3.3-70b-instruct:free",
+  fallbackModel: "google/gemini-2.5-flash",
   maxFiles: 25,
   redactSecrets: true,
   chatEnabled: true,
@@ -82,10 +88,13 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
 
   const model =
     process.env.CODELENS_MODEL ?? file.ai?.model ?? DEFAULTS.model
+  const fallbackModel =
+    process.env.CODELENS_FALLBACK_MODEL ?? file.ai?.fallbackModel ?? DEFAULTS.fallbackModel
 
   cached = {
     aiEnabled: file.ai?.enabled ?? DEFAULTS.aiEnabled,
     model,
+    fallbackModel,
     maxFiles: Number(process.env.CODELENS_MAX_FILES) || file.ai?.maxFiles || DEFAULTS.maxFiles,
     redactSecrets: file.ai?.redactSecrets ?? DEFAULTS.redactSecrets,
     chatEnabled: file.chat?.enabled ?? DEFAULTS.chatEnabled,

@@ -22,9 +22,24 @@ import { loadConfig } from '../config.js'
  *  2. Prioritize/explain the real CVEs that `npm audit` already found.
  */
 
-/** Model + file budget come from `.codelens.json` (or env), resolved once. */
-function model(): string {
-  return loadConfig().model
+/**
+ * Run `generateText` with the configured model, transparently retrying once
+ * with the fallback model if the primary model errors (e.g. the free
+ * OpenRouter tier is rate-limited or no OpenRouter key is set). The fallback —
+ * Gemini 2.5 Flash via the AI Gateway — is zero-config, so the audit keeps
+ * working even when the preferred free model can't be reached.
+ */
+async function withModelFallback<T>(call: (model: string) => Promise<T>): Promise<T> {
+  const { model: primary, fallbackModel } = loadConfig()
+  try {
+    return await call(primary)
+  } catch (err) {
+    if (!fallbackModel || fallbackModel === primary) throw err
+    if (process.env.CODELENS_DEBUG) {
+      console.error(`[codelens] model "${primary}" failed, falling back to "${fallbackModel}":`, err)
+    }
+    return await call(fallbackModel)
+  }
 }
 
 const findingSchema = z.object({
@@ -94,12 +109,14 @@ export async function auditCode(
     .filter(Boolean)
     .join('\n\n')
 
-  const { experimental_output } = await generateText({
-    model: model(),
-    system: SYSTEM.replace('{{framework}}', project.framework),
-    prompt: `Review the following files and report security findings.\n\n${bundle}`,
-    experimental_output: Output.object({ schema: findingSchema }),
-  })
+  const { experimental_output } = await withModelFallback((m) =>
+    generateText({
+      model: m,
+      system: SYSTEM.replace('{{framework}}', project.framework),
+      prompt: `Review the following files and report security findings.\n\n${bundle}`,
+      experimental_output: Output.object({ schema: findingSchema }),
+    }),
+  )
 
   return experimental_output.findings.map((f, i) => ({
     id: `s${i}`,
@@ -137,15 +154,17 @@ export async function prioritizeDependencies(
     )
     .join('\n')
 
-  const { experimental_output } = await generateText({
-    model: model(),
-    system: `You are a security engineer triaging dependency advisories for a ${project.framework} app.
+  const { experimental_output } = await withModelFallback((m) =>
+    generateText({
+      model: m,
+      system: `You are a security engineer triaging dependency advisories for a ${project.framework} app.
 For each advisory, explain in one or two sentences the realistic real-world impact for
 THIS kind of project, and whether the vulnerable code path is likely reachable. Be honest
 about low real-world risk for transitive/build-only packages.`,
-    prompt: `Advisories from the package audit:\n${list}`,
-    experimental_output: Output.object({ schema: prioritizeSchema }),
-  })
+      prompt: `Advisories from the package audit:\n${list}`,
+      experimental_output: Output.object({ schema: prioritizeSchema }),
+    }),
+  )
 
   const byName = new Map(experimental_output.items.map((i) => [i.name, i]))
   return vulns.map((v) => {

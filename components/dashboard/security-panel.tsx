@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { ShieldAlert, ShieldCheck, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -52,18 +52,31 @@ function FindingRow({ finding }: { finding: SecurityFinding }) {
   )
 }
 
+type SevFilter = "all" | SecurityFinding["severity"]
+
+const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"] as const
+
 export function SecurityPanel({ security }: { security: SecurityResult }) {
-  const findingsByGroup = useMemo(() => {
-    const groups = new Map<string, SecurityFinding[]>()
-    for (const f of security.findings) {
-      const key = f.severity
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(f)
+  const [filter, setFilter] = useState<SevFilter>("all")
+
+  const sortedFindings = useMemo(() => [...security.findings].sort(bySeverityDesc), [security.findings])
+
+  const filtered = useMemo(
+    () => (filter === "all" ? sortedFindings : sortedFindings.filter((f) => f.severity === filter)),
+    [sortedFindings, filter],
+  )
+
+  // Severity tabs: "All" plus each severity that actually has findings (in
+  // descending order), mirroring the Dependencies tab's filter bar.
+  const filterTabs: { key: SevFilter; label: string; count: number }[] = useMemo(() => {
+    const tabs: { key: SevFilter; label: string; count: number }[] = [
+      { key: "all", label: "All", count: security.findings.length },
+    ]
+    for (const s of SEVERITY_ORDER) {
+      const count = security.findings.filter((f) => f.severity === s).length
+      if (count > 0) tabs.push({ key: s, label: severityStyle(s).label, count })
     }
-    const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
-    return [...groups.entries()]
-      .sort((a, b) => (order[a[0] as keyof typeof order] ?? 5) - (order[b[0] as keyof typeof order] ?? 5))
-      .map(([sev, items]) => ({ severity: sev as SecurityFinding["severity"], items: items.sort(bySeverityDesc) }))
+    return tabs
   }, [security.findings])
 
   const sevSegments = (["critical", "high", "medium", "low", "info"] as const).map((s, i) => ({
@@ -150,13 +163,32 @@ export function SecurityPanel({ security }: { security: SecurityResult }) {
         </InsightCard>
       </aside>
 
-      {/* Main findings grouped by severity */}
+      {/* Main findings filtered by severity */}
       <div className="flex min-w-0 flex-col gap-3">
+        {security.findings.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 rounded-sm border border-border bg-card p-1">
+            {filterTabs.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setFilter(t.key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+                  filter === t.key ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t.label}
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">{t.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <ShieldAlert className="size-4 text-[color:var(--sev-high)]" />
           <h3 className="text-sm font-semibold text-foreground">Code findings</h3>
           <Badge variant="secondary" className="font-mono text-xs">
-            {security.findings.length}
+            {filtered.length}
           </Badge>
           <span className="ml-auto font-mono text-xs text-muted-foreground">click a finding for full detail</span>
         </div>
@@ -165,23 +197,17 @@ export function SecurityPanel({ security }: { security: SecurityResult }) {
             <ShieldCheck className="size-5 text-[color:var(--sev-ok)]" />
             No code-level security issues found by the AI review.
           </Card>
+        ) : filtered.length === 0 ? (
+          <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+            <ShieldCheck className="size-5 text-[color:var(--sev-ok)]" />
+            No findings at this severity.
+          </Card>
         ) : (
-          findingsByGroup.map((group) => (
-            <div key={group.severity} className="flex flex-col gap-2">
-              {/* Severity group header */}
-              <div className="flex items-center gap-2 px-1 py-2">
-                <span className={cn("font-mono text-xs font-semibold uppercase", severityStyle(group.severity).text)}>
-                  {severityStyle(group.severity).label} ({group.items.length})
-                </span>
-              </div>
-              {/* Findings in this group */}
-              <div className="flex flex-col gap-2">
-                {group.items.map((f) => (
-                  <FindingRow key={f.id} finding={f} />
-                ))}
-              </div>
-            </div>
-          ))
+          <div className="flex flex-col gap-2">
+            {filtered.map((f) => (
+              <FindingRow key={f.id} finding={f} />
+            ))}
+          </div>
         )}
       </div>
     </div>
