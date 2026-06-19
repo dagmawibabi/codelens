@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { HelpCircle, Terminal, Download, KeyRound, Play, ListChecks } from "lucide-react"
+import { HelpCircle, Terminal, Download, KeyRound, Play, ListChecks, KanbanSquare } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -111,6 +111,33 @@ export function HelpDialog() {
             </p>
             <Cmd>{`- run: npx codelens --ci --no-ai
 # exits non-zero past your configured thresholds`}</Cmd>
+          </Section>
+
+          <Section icon={KanbanSquare} title="Track & triage in the dashboard">
+            <p className="text-sm text-muted-foreground">
+              Every finding has a <span className="font-mono text-foreground">Track task</span> action — in its detail
+              sheet and inline on each list row. Tracking a finding adds it to the{" "}
+              <span className="font-mono text-foreground">Task Manager</span> board and marks the row with a dot so you
+              can see at a glance what&apos;s already on your worklist.
+            </p>
+            <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
+              <li>
+                <span className="text-foreground">Custom columns</span> — rename or delete the defaults (To do / In
+                progress / Done) and add your own. Drag cards between columns to update status.
+              </li>
+              <li>
+                <span className="text-foreground">Groups</span> — file tasks under tags like &ldquo;This sprint&rdquo;
+                or &ldquo;Tech debt&rdquo; and filter the board by them.
+              </li>
+              <li>
+                <span className="text-foreground">Detail</span> — click a tracked finding to reopen its full analysis;
+                click a free-form task to edit its column, priority, group, and notes.
+              </li>
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              The board lives only in your browser — it never leaves your machine or reaches the CLI. Manage or reset it
+              from <span className="font-mono text-foreground">Settings → Task board</span>.
+            </p>
           </Section>
         </div>
       </DialogContent>
