@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Play, Terminal, Sparkles, Settings, Clock, Search } from "lucide-react"
+import { Play, Terminal, Sparkles, Clock, Search } from "lucide-react"
 import { HelpDialog } from "./help-dialog"
 import { ThemeToggle } from "./theme-toggle"
 import type { ProjectInfo } from "@/lib/schema"
@@ -65,14 +65,6 @@ export function RunHeader({ project, aiEnabled, lastRunMs, lastRunLabel, onOpenS
           </button>
         )}
         <HelpDialog />
-        <Link
-          href="/settings"
-          prefetch
-          aria-label="Settings"
-          className="inline-flex size-9 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <Settings className="size-4" />
-        </Link>
         <ThemeToggle />
       </div>
     </header>
