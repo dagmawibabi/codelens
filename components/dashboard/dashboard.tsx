@@ -350,7 +350,7 @@ export function Dashboard({
           insights={insights}
         />
 
-        <RunDialog open={runOpen} onOpenChange={setRunOpen} />
+        <RunDialog open={runOpen} onOpenChange={setRunOpen} report={report} />
       </InspectorProvider>
     </main>
   )

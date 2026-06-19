@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { WebSocketServer, WebSocket } from "ws"
-import type { AnalysisReport, RunEvent, TrendPoint } from "./types.js"
+import type { DashboardState, RunEvent } from "./types.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // The dashboard is prebuilt into ../public when the package is bundled.
@@ -27,8 +27,8 @@ export interface ServerHandle {
 }
 
 export interface ServerState {
-  latest: AnalysisReport | null
-  history: TrendPoint[]
+  /** Full dashboard payload (report + insights + history); null before first run. */
+  current: DashboardState | null
 }
 
 /**
@@ -40,20 +40,59 @@ export interface ServerState {
 export async function startServer(opts: {
   port: number
   state: ServerState
+  /** Triggers a fresh analysis when the dashboard requests one (POST /api/run). */
+  onRunRequest?: () => Promise<void> | void
 }): Promise<ServerHandle> {
-  const { state } = opts
+  const { state, onRunRequest } = opts
+  let running = false
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost")
 
+    // Trigger a re-run from the dashboard's "Run checks" button.
+    if (url.pathname === "/api/run" && req.method === "POST") {
+      if (!onRunRequest) {
+        res.writeHead(501, { "content-type": "application/json" })
+        res.end(JSON.stringify({ ok: false, error: "re-run not supported" }))
+        return
+      }
+      if (running) {
+        res.writeHead(409, { "content-type": "application/json" })
+        res.end(JSON.stringify({ ok: false, error: "a run is already in progress" }))
+        return
+      }
+      running = true
+      res.writeHead(202, { "content-type": "application/json" })
+      res.end(JSON.stringify({ ok: true }))
+      // Run after responding; completion is broadcast over the socket.
+      Promise.resolve()
+        .then(() => onRunRequest())
+        .finally(() => {
+          running = false
+        })
+      return
+    }
+
+    // Full dashboard payload for initial hydration.
+    if (url.pathname === "/api/state") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify(state.current))
+      return
+    }
+    // Back-compat granular endpoints.
     if (url.pathname === "/api/latest") {
       res.writeHead(200, { "content-type": "application/json" })
-      res.end(JSON.stringify(state.latest))
+      res.end(JSON.stringify(state.current?.report ?? null))
+      return
+    }
+    if (url.pathname === "/api/insights") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify(state.current?.insights ?? null))
       return
     }
     if (url.pathname === "/api/history") {
       res.writeHead(200, { "content-type": "application/json" })
-      res.end(JSON.stringify(state.history))
+      res.end(JSON.stringify(state.current?.history ?? []))
       return
     }
 
@@ -66,8 +105,8 @@ export async function startServer(opts: {
   wss.on("connection", (ws) => {
     sockets.add(ws)
     // Hydrate the freshly connected client with the latest known state.
-    if (state.latest) {
-      ws.send(JSON.stringify({ type: "report", report: state.latest } satisfies RunEvent))
+    if (state.current) {
+      ws.send(JSON.stringify({ type: "state", state: state.current } satisfies RunEvent))
     }
     ws.on("close", () => sockets.delete(ws))
   })

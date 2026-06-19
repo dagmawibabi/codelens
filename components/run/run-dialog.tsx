@@ -3,8 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Check, Loader2, Minus, Play, RotateCcw } from "lucide-react"
 import { useRunEngine, RUN_PHASES, type LogLevel } from "@/lib/run-engine"
-import { mockReport } from "@/lib/mock-data"
-import type { PhaseStatus } from "@/lib/schema"
+import type { AnalysisReport, PhaseStatus } from "@/lib/schema"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -41,8 +40,7 @@ const LEVEL_TAG: Record<LogLevel, string> = {
  * Inner body that drives the run engine. Mounted only while the dialog is open
  * so that each open starts a fresh run (the hook auto-starts on mount).
  */
-function RunDialogBody() {
-  const report = mockReport
+function RunDialogBody({ report }: { report: AnalysisReport }) {
   const aiEnabled = report.meta.aiEnabled
   const { phases, logs, running, done, elapsedMs, start } = useRunEngine(aiEnabled, true)
 
@@ -50,6 +48,14 @@ function RunDialogBody() {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [logs])
+
+  // When a real CodeLens backend is present, trigger an actual re-analysis.
+  // The live socket drives the dashboard's data; this animation reflects it.
+  useEffect(() => {
+    void fetch("/api/run", { method: "POST" }).catch(() => {
+      /* no backend (preview) — the simulated engine still plays */
+    })
+  }, [])
 
   const completed = RUN_PHASES.filter((p) => phases[p.id] === "done" || phases[p.id] === "skipped").length
   const progress = Math.round((completed / RUN_PHASES.length) * 100)
@@ -189,10 +195,10 @@ function RunDialogBody() {
 interface RunDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  report: AnalysisReport
 }
 
-export function RunDialog({ open, onOpenChange }: RunDialogProps) {
-  const report = mockReport
+export function RunDialog({ open, onOpenChange, report }: RunDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto sm:max-w-3xl lg:max-w-4xl">
@@ -202,7 +208,7 @@ export function RunDialog({ open, onOpenChange }: RunDialogProps) {
             {report.meta.project.framework} · {report.meta.project.packageManager} · {report.meta.project.root}
           </DialogDescription>
         </DialogHeader>
-        <div className="pt-5">{open && <RunDialogBody />}</div>
+        <div className="pt-5">{open && <RunDialogBody report={report} />}</div>
       </DialogContent>
     </Dialog>
   )

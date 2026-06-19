@@ -8,5 +8,6 @@ export default defineConfig({
   clean: true,
   // Keep heavy/native deps external; they're installed alongside the package.
   external: ["ai", "execa", "ws", "open", "commander", "zod"],
-  banner: { js: "#!/usr/bin/env node" },
+  // The shebang is already present at the top of src/cli.ts; tsup preserves it.
+  // Adding a banner here would duplicate it and break ESM parsing.
 })

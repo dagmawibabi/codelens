@@ -3,9 +3,9 @@ import { Command } from "commander"
 import open from "open"
 import { runAnalysis } from "./run.js"
 import { startServer, type ServerState } from "./server.js"
-import { saveRun, readHistory } from "./store.js"
+import { saveRun, readHistory, readState } from "./store.js"
 import { aiEnabled } from "./ai/audit.js"
-import type { RunEvent } from "./types.js"
+import type { DashboardState, RunEvent } from "./types.js"
 
 const program = new Command()
 
@@ -37,15 +37,16 @@ if (Boolean(opts.ai) && !aiEnabled()) {
 async function main() {
   // ---- Headless modes: --ci and --json ----
   if (opts.ci || opts.json) {
-    const report = await runAnalysis({ cwd, ai })
+    const history = await readHistory(cwd)
+    const { report, insights } = await runAnalysis({ cwd, ai, history })
 
     if (opts.json) {
-      process.stdout.write(JSON.stringify(report, null, 2) + "\n")
+      process.stdout.write(JSON.stringify({ report, insights, history } satisfies DashboardState, null, 2) + "\n")
       return
     }
 
     printCiSummary(report)
-    await saveRun(cwd, report)
+    await saveRun(cwd, report, insights)
 
     const minScore = Number(opts.minScore) || 0
     const hasBlockingIssues =
@@ -61,11 +62,36 @@ async function main() {
 
   // ---- Interactive dashboard mode ----
   const state: ServerState = {
-    latest: null,
-    history: await readHistory(cwd),
+    // Hydrate from a previous run if one exists, so the dashboard isn't empty
+    // while the fresh analysis is still in flight.
+    current: await readState(cwd),
   }
 
-  const server = await startServer({ port: Number(opts.port) || 4321, state })
+  const onEvent = (event: RunEvent) => {
+    server.broadcast(event)
+    if (event.type === "state") {
+      state.current = event.state
+    }
+  }
+
+  // A single analysis pass: stream events, persist, and refresh live state.
+  const analyze = async () => {
+    const priorHistory = await readHistory(cwd)
+    const { report, insights } = await runAnalysis({ cwd, ai, history: priorHistory, onEvent })
+    await saveRun(cwd, report, insights)
+    const refreshed = { report, insights, history: await readHistory(cwd) }
+    state.current = refreshed
+    server.broadcast({ type: "state", state: refreshed })
+    return report
+  }
+
+  const server = await startServer({
+    port: Number(opts.port) || 4321,
+    state,
+    onRunRequest: async () => {
+      await analyze()
+    },
+  })
   console.log(`\n  \x1b[36mCodeLens\x1b[0m dashboard → \x1b[1m${server.url}\x1b[0m\n`)
 
   if (opts.open) {
@@ -74,17 +100,7 @@ async function main() {
     })
   }
 
-  const onEvent = (event: RunEvent) => {
-    server.broadcast(event)
-    if (event.type === "report") {
-      state.latest = event.report
-    }
-  }
-
-  const report = await runAnalysis({ cwd, ai, onEvent })
-  state.latest = report
-  await saveRun(cwd, report)
-  state.history = await readHistory(cwd)
+  const report = await analyze()
 
   console.log(
     `  Done. Health \x1b[1m${report.health.score}\x1b[0m (${report.health.grade}) · ` +
