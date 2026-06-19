@@ -5,7 +5,7 @@ import { Globe, ShieldCheck, Lock, Unlock, ChevronRight, ArrowUpRight, Filter } 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { useInspector } from "./inspector"
+import { useInspector, TrackedBadge } from "./inspector"
 import { severityStyle } from "@/lib/severity"
 import { networkToIssue } from "@/lib/issues"
 import type { NetworkResult, NetworkCall } from "@/lib/project-insights"
@@ -59,6 +59,7 @@ function CallRow({ call }: { call: NetworkCall }) {
         </div>
         {top && <p className="mt-1.5 text-pretty text-sm leading-relaxed text-foreground">{top.message}</p>}
       </div>
+      <TrackedBadge issue={networkToIssue(call)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )

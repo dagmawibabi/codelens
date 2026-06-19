@@ -5,7 +5,7 @@ import { ShieldAlert, ShieldCheck, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { securityToIssue } from "@/lib/issues"
 import type { SecurityResult, SecurityFinding } from "@/lib/schema"
@@ -46,6 +46,7 @@ function FindingRow({ finding }: { finding: SecurityFinding }) {
             {finding.description}
           </p>
         </div>
+        <TrackedBadge issue={securityToIssue(finding)} variant="dot" className="mt-0.5" />
         <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       </div>
     </Card>

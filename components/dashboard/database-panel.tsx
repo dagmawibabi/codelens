@@ -24,7 +24,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar } from "./insights"
 import { DbRelationshipGraph } from "./db-relationship-graph"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { dbToIssue } from "@/lib/issues"
 import type {
@@ -249,6 +249,7 @@ function FindingRow({ f }: { f: DbFinding }) {
             <FileLink path={f.filePath} line={f.line} />
           </div>
         </div>
+        <TrackedBadge issue={dbToIssue(f)} variant="dot" className="mt-0.5" />
       </div>
     </div>
   )

@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge"
 import { severityStyle } from "@/lib/severity"
 import { getFileContent } from "@/lib/file-contents"
 import { EDITORS, absolutePath, issueDocs, type Issue } from "@/lib/issues"
-import { addTaskFromIssue, addGroup, useGroups } from "@/lib/tasks"
+import { addTaskFromIssue, addGroup, useGroups, useTrackedIssueKeys, issueKey } from "@/lib/tasks"
 import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
@@ -686,38 +686,61 @@ export function InspectorProvider({
 
 function TrackTaskButton({ issue }: { issue: Issue }) {
   const groups = useGroups()
-  const [state, setState] = useState<"idle" | "added" | "exists">("idle")
+  const trackedKeys = useTrackedIssueKeys()
+  const tracked = trackedKeys.has(issueKey(issue))
+  const [open, setOpen] = useState(false)
+  const [flash, setFlash] = useState<"added" | "exists" | null>(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState("")
 
+  function resetMenu() {
+    setCreating(false)
+    setNewName("")
+  }
+
   function track(groupId?: string) {
     const { created } = addTaskFromIssue(issue, groupId)
-    setState(created ? "added" : "exists")
-    window.setTimeout(() => setState("idle"), 1600)
+    setFlash(created ? "added" : "exists")
+    window.setTimeout(() => setFlash(null), 1600)
+    setOpen(false)
+    resetMenu()
   }
 
   function createAndTrack() {
     const name = newName.trim()
     if (!name) return
     const group = addGroup(name)
-    setNewName("")
-    setCreating(false)
     track(group.id)
   }
 
-  const label = state === "added" ? "Tracked" : state === "exists" ? "Already tracked" : "Track task"
-  const Icon = state === "idle" ? ClipboardList : ClipboardCheck
+  // Button reflects tracked state at rest; flashes feedback right after a click.
+  const label =
+    flash === "added" ? "Tracked" : flash === "exists" ? "Already tracked" : tracked ? "Tracked" : "Track task"
+  const Icon = flash || tracked ? ClipboardCheck : ClipboardList
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-card px-2.5 py-1.5 font-mono text-xs text-foreground transition-colors hover:bg-secondary">
-        <Icon className="size-3.5 text-muted-foreground" />
+    <DropdownMenu
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (!o) resetMenu()
+      }}
+    >
+      <DropdownMenuTrigger
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-mono text-xs transition-colors",
+          tracked
+            ? "border-foreground/40 bg-secondary text-foreground"
+            : "border-border bg-card text-foreground hover:bg-secondary",
+        )}
+      >
+        <Icon className={cn("size-3.5", tracked ? "text-foreground" : "text-muted-foreground")} />
         {label}
         <ChevronRight className="size-3 rotate-90 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">
         <p className="px-1.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Add to task board
+          {tracked ? "Update task group" : "Add to task board"}
         </p>
         <DropdownMenuItem onClick={() => track(undefined)}>
           <ClipboardList className="size-3.5 text-muted-foreground" />
@@ -732,7 +755,11 @@ function TrackTaskButton({ issue }: { issue: Issue }) {
         ))}
         <DropdownMenuSeparator />
         {creating ? (
-          <div className="flex items-center gap-1.5 px-1.5 py-1" onKeyDown={(e) => e.stopPropagation()}>
+          <div
+            className="flex items-center gap-1.5 px-1.5 py-1"
+            // Keep keystrokes from reaching the menu's typeahead handler.
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             <input
               autoFocus
               value={newName}
@@ -757,10 +784,8 @@ function TrackTaskButton({ issue }: { issue: Issue }) {
           </div>
         ) : (
           <DropdownMenuItem
-            onClick={(e) => {
-              e.preventDefault()
-              setCreating(true)
-            }}
+            closeOnClick={false}
+            onClick={() => setCreating(true)}
           >
             <Plus className="size-3.5 text-muted-foreground" />
             New group…
@@ -768,6 +793,44 @@ function TrackTaskButton({ issue }: { issue: Issue }) {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* TrackedBadge — marks an issue row that's already on the task board  */
+/* ------------------------------------------------------------------ */
+
+export function TrackedBadge({
+  issue,
+  variant = "badge",
+  className,
+}: {
+  issue: Pick<Issue, "source" | "filePath" | "line" | "title">
+  /** "badge" shows a labelled chip; "dot" shows a compact icon only. */
+  variant?: "badge" | "dot"
+  className?: string
+}) {
+  const keys = useTrackedIssueKeys()
+  if (!keys.has(issueKey(issue))) return null
+  if (variant === "dot") {
+    return (
+      <ClipboardCheck
+        className={cn("size-3.5 shrink-0 text-foreground", className)}
+        aria-label="Tracked in Task Manager"
+      />
+    )
+  }
+  return (
+    <span
+      title="Tracked in Task Manager"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border border-foreground/40 bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground",
+        className,
+      )}
+    >
+      <ClipboardCheck className="size-3" />
+      tracked
+    </span>
   )
 }
 

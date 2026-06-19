@@ -5,7 +5,7 @@ import { Accessibility, ShieldCheck, ChevronRight, Eye } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { useInspector } from "./inspector"
+import { useInspector, TrackedBadge } from "./inspector"
 import { severityStyle } from "@/lib/severity"
 import { a11yToIssue } from "@/lib/issues"
 import type { A11yResult, A11yViolation, A11yImpact } from "@/lib/project-insights"
@@ -57,6 +57,7 @@ function ViolationRow({ violation }: { violation: A11yViolation }) {
           ))}
         </div>
       </div>
+      <TrackedBadge issue={a11yToIssue(violation)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { ChevronRight, FileCode2, CheckCircle2, ListTree, Braces, AlertCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { InsightCard, CountList } from "./insights"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { TypeExplorer } from "./type-explorer"
 import { typeToIssue } from "@/lib/issues"
 import type { TypeCheckResult, TypeDiagnostic } from "@/lib/schema"
@@ -46,6 +46,7 @@ function DiagnosticItem({ diag }: { diag: TypeDiagnostic }) {
           </div>
           <p className="mt-1.5 text-pretty text-sm leading-relaxed text-foreground">{diag.message}</p>
         </div>
+        <TrackedBadge issue={typeToIssue(diag)} variant="dot" className="mt-0.5" />
         <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       </div>
     </Card>
