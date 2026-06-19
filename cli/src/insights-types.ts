@@ -647,17 +647,40 @@ export interface AuthFinding {
   docsUrl?: string
 }
 
+export type AuthProviderId =
+  | "better-auth"
+  | "clerk"
+  | "next-auth"
+  | "supabase"
+  | "lucia"
+  | "firebase"
+  | "auth0"
+  | "passport"
+
+export interface AuthProviderInfo {
+  id: AuthProviderId
+  /** Display name, e.g. "Clerk", "Auth.js (NextAuth)". */
+  name: string
+  /** npm package the detection matched on. */
+  packageName: string
+  docsUrl: string
+  /** Whether CodeLens can introspect this provider's config in depth. */
+  deepSupport: boolean
+}
+
 export interface AuthResult {
-  /** True when `better-auth` is a dependency. Gates the whole tab. */
+  /** True when a supported auth library is a dependency. Gates the tab. */
   present: boolean
+  /** Which auth library is in use. Undefined only when `present` is false. */
+  provider?: AuthProviderInfo
   version?: string
   /** Framework integration in use (e.g. "Next.js"). */
   integration?: string
-  /** Path to the server `betterAuth()` config, if found. */
+  /** Path to the server auth config, if found. */
   configPath?: string
-  /** Path to the `createAuthClient()` setup, if found. */
+  /** Path to the client auth setup, if found. */
   clientPath?: string
-  /** Database adapter powering Better Auth. */
+  /** Database adapter powering the auth library. */
   databaseAdapter?: { name: string; detail: string }
   methods: AuthMethod[]
   socialProviders: string[]
@@ -666,6 +689,76 @@ export interface AuthResult {
   session: { expiresIn?: number; updateAge?: number; cookieCache?: boolean }
   findings: AuthFinding[]
   counts: { plugins: number; methods: number; providers: number; findings: number }
+}
+
+/* ------------------------------------------------------------------ */
+/* API Surface Map                                                     */
+/* ------------------------------------------------------------------ */
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "ALL"
+
+export type ApiRouteKind =
+  | "next-app"
+  | "next-pages"
+  | "next-action"
+  | "express"
+  | "hono"
+  | "fastify"
+  | "sveltekit"
+  | "nuxt"
+  | "other"
+
+export interface ApiEndpointFlags {
+  auth: boolean
+  validation: boolean
+  database: boolean
+  env: boolean
+  errorHandling: boolean
+  inputs: boolean
+}
+
+export interface ApiEndpoint {
+  id: string
+  method: HttpMethod
+  path: string
+  kind: ApiRouteKind
+  filePath: string
+  line: number
+  handler?: string
+  flags: ApiEndpointFlags
+  findings: ApiFinding[]
+  dynamic: boolean
+}
+
+export interface ApiFinding {
+  id: string
+  severity: Severity
+  kind: "no-auth" | "no-validation" | "no-error-handling" | "public-mutation" | "wildcard-method" | "hardcoded-secret"
+  title: string
+  detail: string
+  recommendation: string
+}
+
+export interface ApiGroup {
+  segment: string
+  endpoints: ApiEndpoint[]
+}
+
+export interface ApiResult {
+  present: boolean
+  style?: string
+  endpoints: ApiEndpoint[]
+  groups: ApiGroup[]
+  methodCounts: { method: HttpMethod; count: number }[]
+  findings: ApiFinding[]
+  counts: {
+    endpoints: number
+    dynamic: number
+    mutations: number
+    protected: number
+    validated: number
+    findings: number
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -680,6 +773,7 @@ export interface ProjectInsights {
   docs: DocsResult
   database: DbResult
   auth: AuthResult
+  api: ApiResult
   accessibility: A11yResult
   performance: PerfResult
   tests: TestsResult

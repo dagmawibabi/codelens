@@ -232,29 +232,25 @@ export function AuthPanel({ auth }: { auth: AuthResult }) {
       <Card className="flex flex-col items-center gap-3 p-10 text-center">
         <ShieldCheck className="size-8 text-muted-foreground" />
         <div>
-          <p className="text-sm font-medium text-foreground">No Better Auth setup detected</p>
+          <p className="text-sm font-medium text-foreground">No auth provider detected</p>
           <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">
-            This tab analyzes projects that depend on <span className="font-mono">better-auth</span>. Install it and add
-            a <span className="font-mono">betterAuth()</span> config to see a full breakdown here.
+            CodeLens looks for popular auth libraries — <span className="font-mono">better-auth</span>,{" "}
+            <span className="font-mono">@clerk/nextjs</span>, <span className="font-mono">next-auth</span>,{" "}
+            <span className="font-mono">@supabase/supabase-js</span>, <span className="font-mono">lucia</span>,{" "}
+            <span className="font-mono">firebase</span> and more. Install one to see a breakdown here.
           </p>
         </div>
-        <a
-          href="https://www.better-auth.com/docs/installation"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Better Auth docs
-          <ExternalLink className="size-3" />
-        </a>
       </Card>
     )
   }
 
+  const provider = auth.provider
+  const deep = provider?.deepSupport ?? false
+
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
       <aside className="flex flex-col gap-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
-        <InsightCard title="Better Auth">
+        <InsightCard title={provider?.name ?? "Auth"}>
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
@@ -263,6 +259,11 @@ export function AuthPanel({ auth }: { auth: AuthResult }) {
               </span>
               {auth.version && <span className="font-mono text-xs text-muted-foreground">v{auth.version}</span>}
             </div>
+            {!deep && (
+              <div className="rounded-sm border border-[color:var(--sev-medium)]/30 bg-[color:var(--sev-medium)]/10 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                Provider-level analysis. Deep config introspection (methods, plugins, session) is available for Better Auth.
+              </div>
+            )}
             {auth.integration && (
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Integration</span>
@@ -287,6 +288,17 @@ export function AuthPanel({ auth }: { auth: AuthResult }) {
               <div className="font-mono text-[10px] text-muted-foreground">
                 <FileLink path={auth.clientPath} />
               </div>
+            )}
+            {provider && (
+              <a
+                href={provider.docsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 border-t border-border pt-2 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {provider.name} docs
+                <ExternalLink className="size-3" />
+              </a>
             )}
           </div>
         </InsightCard>
@@ -353,28 +365,30 @@ export function AuthPanel({ auth }: { auth: AuthResult }) {
           )}
         </section>
 
-        {/* Plugins */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Puzzle className="size-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">Plugins</h3>
-            <Badge variant="secondary" className="font-mono text-xs">
-              {auth.plugins.length}
-            </Badge>
-          </div>
-          {auth.plugins.length === 0 ? (
-            <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-              <Boxes className="size-5 text-muted-foreground" />
-              No Better Auth plugins are registered.
-            </Card>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {auth.plugins.map((p) => (
-                <PluginCard key={p.id} plugin={p} onOpen={() => setPlugin(p)} />
-              ))}
+        {/* Plugins — only Better Auth exposes a plugin system we introspect */}
+        {deep && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Puzzle className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">Plugins</h3>
+              <Badge variant="secondary" className="font-mono text-xs">
+                {auth.plugins.length}
+              </Badge>
             </div>
-          )}
-        </section>
+            {auth.plugins.length === 0 ? (
+              <Card className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+                <Boxes className="size-5 text-muted-foreground" />
+                No {provider?.name ?? "auth"} plugins are registered.
+              </Card>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {auth.plugins.map((p) => (
+                  <PluginCard key={p.id} plugin={p} onOpen={() => setPlugin(p)} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Configuration */}
         <section className="flex flex-col gap-3">

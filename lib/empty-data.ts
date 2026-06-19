@@ -107,6 +107,14 @@ export const EMPTY_INSIGHTS: ProjectInsights = {
     findings: [],
     counts: { plugins: 0, methods: 0, providers: 0, findings: 0 },
   },
+  api: {
+    present: false,
+    endpoints: [],
+    groups: [],
+    methodCounts: [],
+    findings: [],
+    counts: { endpoints: 0, dynamic: 0, mutations: 0, protected: 0, validated: 0, findings: 0 },
+  },
   accessibility: {
     score: 0,
     violations: [],

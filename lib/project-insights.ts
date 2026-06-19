@@ -769,8 +769,35 @@ export interface AuthFinding {
   docsUrl?: string
 }
 
+export type AuthProviderId =
+  | "better-auth"
+  | "clerk"
+  | "next-auth"
+  | "supabase"
+  | "lucia"
+  | "firebase"
+  | "auth0"
+  | "passport"
+
+export interface AuthProviderInfo {
+  id: AuthProviderId
+  /** Display name, e.g. "Clerk", "Auth.js (NextAuth)". */
+  name: string
+  /** npm package the detection matched on. */
+  packageName: string
+  docsUrl: string
+  /**
+   * Whether CodeLens can introspect this provider's config in depth
+   * (methods, plugins, session). Only Better Auth has full support today;
+   * others are detected and surfaced with provider-level guidance.
+   */
+  deepSupport: boolean
+}
+
 export interface AuthResult {
   present: boolean
+  /** Which auth library is in use. Undefined only when `present` is false. */
+  provider?: AuthProviderInfo
   version?: string
   integration?: string
   configPath?: string
@@ -786,6 +813,90 @@ export interface AuthResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* API Surface Map                                                     */
+/* ------------------------------------------------------------------ */
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "ALL"
+
+export type ApiRouteKind =
+  | "next-app" // app/**/route.ts
+  | "next-pages" // pages/api/**
+  | "next-action" // "use server" server actions
+  | "express" // app.get(...) / router.post(...)
+  | "hono" // app.get(...) on a Hono instance
+  | "fastify"
+  | "sveltekit" // +server.ts
+  | "nuxt" // server/api/**
+  | "other"
+
+export interface ApiEndpointFlags {
+  /** Reads the authenticated session/user. */
+  auth: boolean
+  /** Validates input (zod/yup/valibot/manual). */
+  validation: boolean
+  /** References a database/ORM call. */
+  database: boolean
+  /** Touches process.env directly. */
+  env: boolean
+  /** Returns/handles errors explicitly (try/catch or error response). */
+  errorHandling: boolean
+  /** Reads request body / params. */
+  inputs: boolean
+}
+
+export interface ApiEndpoint {
+  id: string
+  method: HttpMethod
+  /** Normalized route path, e.g. /api/users/[id]. */
+  path: string
+  kind: ApiRouteKind
+  filePath: string
+  line: number
+  /** Handler/export name when meaningful (e.g. "POST", action name). */
+  handler?: string
+  flags: ApiEndpointFlags
+  /** Static issues found around the handler. */
+  findings: ApiFinding[]
+  /** True when the route segment is dynamic ([id], :id, etc). */
+  dynamic: boolean
+}
+
+export interface ApiFinding {
+  id: string
+  severity: Severity
+  kind: "no-auth" | "no-validation" | "no-error-handling" | "public-mutation" | "wildcard-method" | "hardcoded-secret"
+  title: string
+  detail: string
+  recommendation: string
+}
+
+export interface ApiGroup {
+  /** Top-level segment, e.g. "api", "auth", "(root)". */
+  segment: string
+  endpoints: ApiEndpoint[]
+}
+
+export interface ApiResult {
+  /** True when at least one server endpoint was detected. */
+  present: boolean
+  /** Dominant framework/style for the surface. */
+  style?: string
+  endpoints: ApiEndpoint[]
+  groups: ApiGroup[]
+  /** Distribution of endpoints by HTTP method. */
+  methodCounts: { method: HttpMethod; count: number }[]
+  findings: ApiFinding[]
+  counts: {
+    endpoints: number
+    dynamic: number
+    mutations: number
+    protected: number
+    validated: number
+    findings: number
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Aggregate                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -797,6 +908,7 @@ export interface ProjectInsights {
   docs: DocsResult
   database: DbResult
   auth: AuthResult
+  api: ApiResult
   accessibility: A11yResult
   performance: PerfResult
   tests: TestsResult
@@ -1905,6 +2017,13 @@ export const projectInsights: ProjectInsights = {
 
   auth: {
     present: true,
+    provider: {
+      id: "better-auth",
+      name: "Better Auth",
+      packageName: "better-auth",
+      docsUrl: "https://www.better-auth.com/docs",
+      deepSupport: true,
+    },
     version: "1.2.8",
     integration: "Next.js",
     configPath: "lib/auth.ts",
@@ -2040,6 +2159,165 @@ export const projectInsights: ProjectInsights = {
       },
     ],
     counts: { plugins: 5, methods: 2, providers: 2, findings: 3 },
+  },
+
+  api: {
+    present: true,
+    style: "Next.js App Router · Server Actions",
+    endpoints: [
+      {
+        id: "api-1",
+        method: "POST",
+        path: "/api/checkout",
+        kind: "next-app",
+        filePath: "app/api/checkout/route.ts",
+        line: 12,
+        handler: "POST",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: true, env: true, errorHandling: false, inputs: true },
+        findings: [
+          {
+            id: "api-1-auth",
+            severity: "high",
+            kind: "no-auth",
+            title: "Mutation without auth check",
+            detail: "This POST handler changes state but no session/user lookup was detected.",
+            recommendation: "Verify the caller's session before mutating data, or confirm the route is intentionally public.",
+          },
+          {
+            id: "api-1-valid",
+            severity: "medium",
+            kind: "no-validation",
+            title: "Request body not validated",
+            detail: "The handler reads request input but no schema validation (zod/yup/valibot) was found.",
+            recommendation: "Validate and parse the request body with a schema before using it.",
+          },
+        ],
+      },
+      {
+        id: "api-2",
+        method: "GET",
+        path: "/api/products/[id]",
+        kind: "next-app",
+        filePath: "app/api/products/[id]/route.ts",
+        line: 8,
+        handler: "GET",
+        dynamic: true,
+        flags: { auth: false, validation: true, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-3",
+        method: "DELETE",
+        path: "/api/products/[id]",
+        kind: "next-app",
+        filePath: "app/api/products/[id]/route.ts",
+        line: 31,
+        handler: "DELETE",
+        dynamic: true,
+        flags: { auth: true, validation: false, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-4",
+        method: "GET",
+        path: "/api/users",
+        kind: "next-app",
+        filePath: "app/api/users/route.ts",
+        line: 6,
+        handler: "GET",
+        dynamic: false,
+        flags: { auth: true, validation: false, database: true, env: false, errorHandling: true, inputs: false },
+        findings: [],
+      },
+      {
+        id: "api-5",
+        method: "POST",
+        path: "/api/webhooks/stripe",
+        kind: "next-app",
+        filePath: "app/api/webhooks/stripe/route.ts",
+        line: 14,
+        handler: "POST",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: true, env: true, errorHandling: true, inputs: true },
+        findings: [
+          {
+            id: "api-5-valid",
+            severity: "medium",
+            kind: "no-validation",
+            title: "Request body not validated",
+            detail: "The handler reads request input but no schema validation was found. Verify the webhook signature.",
+            recommendation: "Verify the Stripe signature header before trusting the payload.",
+          },
+        ],
+      },
+      {
+        id: "api-6",
+        method: "POST",
+        path: "/updateProfile",
+        kind: "next-action",
+        filePath: "app/actions/profile.ts",
+        line: 9,
+        handler: "updateProfile",
+        dynamic: false,
+        flags: { auth: true, validation: true, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-7",
+        method: "GET",
+        path: "/api/health",
+        kind: "next-app",
+        filePath: "app/api/health/route.ts",
+        line: 3,
+        handler: "GET",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: false, env: false, errorHandling: false, inputs: false },
+        findings: [],
+      },
+    ],
+    groups: [
+      {
+        segment: "api",
+        endpoints: [],
+      },
+      {
+        segment: "updateProfile",
+        endpoints: [],
+      },
+    ],
+    methodCounts: [
+      { method: "GET", count: 3 },
+      { method: "POST", count: 3 },
+      { method: "DELETE", count: 1 },
+    ],
+    findings: [
+      {
+        id: "api-1-auth",
+        severity: "high",
+        kind: "no-auth",
+        title: "Mutation without auth check",
+        detail: "POST /api/checkout changes state but no session/user lookup was detected.",
+        recommendation: "Verify the caller's session before mutating data, or confirm the route is intentionally public.",
+      },
+      {
+        id: "api-1-valid",
+        severity: "medium",
+        kind: "no-validation",
+        title: "Request body not validated",
+        detail: "POST /api/checkout reads request input but no schema validation was found.",
+        recommendation: "Validate and parse the request body with a schema before using it.",
+      },
+      {
+        id: "api-5-valid",
+        severity: "medium",
+        kind: "no-validation",
+        title: "Request body not validated",
+        detail: "POST /api/webhooks/stripe reads input without validation. Verify the webhook signature.",
+        recommendation: "Verify the Stripe signature header before trusting the payload.",
+      },
+    ],
+    counts: { endpoints: 7, dynamic: 2, mutations: 4, protected: 3, validated: 2, findings: 3 },
   },
 
   accessibility: {
