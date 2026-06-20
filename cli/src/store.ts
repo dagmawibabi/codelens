@@ -6,9 +6,43 @@ const DIR = ".codelens"
 const HISTORY_FILE = "history.json"
 const LATEST_FILE = "latest.json"
 const INSIGHTS_FILE = "insights.json"
+const CHATS_FILE = "chats.json"
 
 function dir(cwd: string) {
   return path.join(cwd, DIR)
+}
+
+export type ClearScope = "all" | "runs" | "chats"
+
+/**
+ * Delete persisted artifacts from `.codelens/`. Mirrors the dashboard's
+ * "Data & storage" controls so "Delete run history" / "Delete everything"
+ * actually remove the JSON files on disk (not just the in-memory state).
+ *   - "runs"  → history.json, latest.json, insights.json
+ *   - "chats" → chats.json
+ *   - "all"   → everything above
+ * Returns the list of files that were removed.
+ */
+export async function clearData(cwd: string, scope: ClearScope = "all"): Promise<string[]> {
+  const base = dir(cwd)
+  const targets: string[] = []
+  if (scope === "all" || scope === "runs") {
+    targets.push(HISTORY_FILE, LATEST_FILE, INSIGHTS_FILE)
+  }
+  if (scope === "all" || scope === "chats") {
+    targets.push(CHATS_FILE)
+  }
+
+  const removed: string[] = []
+  for (const file of targets) {
+    try {
+      await fs.rm(path.join(base, file), { force: true })
+      removed.push(file)
+    } catch {
+      /* ignore — file may not exist */
+    }
+  }
+  return removed
 }
 
 /** Persist a run: write latest.json + insights.json and append a trend point to history.json. */

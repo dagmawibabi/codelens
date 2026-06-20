@@ -279,4 +279,4 @@ export type RunEvent =
       security?: SecurityResult
     }
   | { type: "report"; report: AnalysisReport }
-  | { type: "state"; state: DashboardState }
+  | { type: "state"; state: DashboardState | null }

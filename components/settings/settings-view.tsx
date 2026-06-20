@@ -54,9 +54,8 @@ import {
   resetBoard,
 } from "@/lib/tasks"
 import { clearServerData, deleteEverything } from "@/lib/reset-data"
+import { fetchGatewayModels } from "@/lib/gateway-models"
 import { cn } from "@/lib/utils"
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 function SectionCard({
   icon: Icon,
@@ -98,20 +97,24 @@ export function SettingsView() {
   const provider = getProvider(settings.provider)
   const isGateway = settings.provider === "vercel"
 
-  // Fetch live model catalog from the AI Gateway when that provider is active.
+  // Fetch the live model catalog straight from the AI Gateway when that
+  // provider is active. Fetching the CORS-enabled endpoint directly (rather
+  // than via a Next API route) keeps this working when the dashboard is served
+  // as a static bundle by the CLI. Retries are disabled so a transient failure
+  // can't become a request storm.
   const {
-    data: gatewayData,
+    data: gatewayModels,
     isLoading: gatewayLoading,
     mutate: refreshGateway,
-  } = useSWR<{ models?: ModelOption[]; error?: string }>(
-    isGateway ? "/api/gateway-models" : null,
-    fetcher,
-    { revalidateOnFocus: false },
+  } = useSWR<ModelOption[]>(
+    isGateway ? "gateway/models" : null,
+    fetchGatewayModels,
+    { revalidateOnFocus: false, shouldRetryOnError: false },
   )
 
   // Effective model list: live gateway list when available, else static catalog.
   const models: ModelOption[] =
-    isGateway && gatewayData?.models?.length ? gatewayData.models : provider.models
+    isGateway && gatewayModels?.length ? gatewayModels : provider.models
 
   // Keep the model valid whenever the provider changes.
   function selectProvider(id: ProviderId) {
@@ -267,7 +270,7 @@ export function SettingsView() {
               <p className="font-mono text-xs text-muted-foreground">
                 {gatewayLoading
                   ? "Fetching the live model list from the AI Gateway…"
-                  : gatewayData?.models?.length
+                  : gatewayModels?.length
                     ? "Live text models from the Vercel AI Gateway."
                     : "Showing built-in defaults — could not reach the gateway."}
               </p>

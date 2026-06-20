@@ -21,10 +21,8 @@ import {
   DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import type { CatalogModel } from "@/app/api/models-catalog/route"
+import { fetchCatalog, type CatalogModel } from "@/lib/models-catalog"
 import { cn } from "@/lib/utils"
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 type CapabilityFilter = "all" | "reasoning" | "toolCall" | "attachment" | "openWeights"
 
@@ -140,13 +138,17 @@ export function ModelPicker({
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<CapabilityFilter>("all")
 
-  const { data, isLoading, error } = useSWR<{ models?: CatalogModel[]; error?: string }>(
-    open ? "/api/models-catalog" : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 600000 },
+  // Fetch the catalog straight from models.dev (CORS-enabled). This avoids the
+  // `/api/models-catalog` route, which doesn't exist when the dashboard is
+  // served as a static bundle by the CodeLens CLI. Retries are disabled so a
+  // transient failure can't turn into a request storm.
+  const { data, isLoading, error } = useSWR<CatalogModel[]>(
+    open ? "models.dev/catalog" : null,
+    fetchCatalog,
+    { revalidateOnFocus: false, dedupingInterval: 600000, shouldRetryOnError: false },
   )
 
-  const models = useMemo(() => data?.models ?? [], [data])
+  const models = useMemo(() => data ?? [], [data])
 
   const selected = useMemo(() => models.find((m) => m.id === value), [models, value])
 
@@ -240,7 +242,7 @@ export function ModelPicker({
               <Loader2 className="size-4 animate-spin" />
               Loading catalog…
             </div>
-          ) : error || data?.error ? (
+          ) : error ? (
             <div className="py-12 text-center font-mono text-sm text-muted-foreground">
               Could not load the model catalog. Try again shortly.
             </div>

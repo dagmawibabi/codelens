@@ -74,10 +74,15 @@ export function useDashboardData(): UseDashboardData {
   const hasBackend = !error && (data != null || live != null)
   const wsRef = useRef<WebSocket | null>(null)
 
-  // Subscribe to live run updates only when a CLI backend is present.
+  // Subscribe to live run updates whenever a CLI backend is present. A backend
+  // is "present" as soon as `/api/state` resolves without erroring — even if it
+  // returns null (no run yet). We must connect in that null case too, otherwise
+  // a project's very first run would finish without the dashboard ever hearing
+  // about it, forcing a manual restart. In the standalone preview `/api/state`
+  // 404s, so `error` is set and we never open a socket.
   useEffect(() => {
     if (error) return
-    if (data == null && live == null) return
+    if (isLoading) return
     if (typeof window === "undefined") return
 
     const proto = window.location.protocol === "https:" ? "wss" : "ws"
@@ -109,7 +114,10 @@ export function useDashboardData(): UseDashboardData {
     } catch {
       /* no socket available; static data only */
     }
-  }, [error, data, live, mutate])
+    // Intentionally depends only on backend presence — not on `data`/`live` —
+    // so the socket stays open across state updates instead of being torn down
+    // and recreated on every broadcast.
+  }, [error, isLoading, mutate])
 
   const resolved = live ?? data ?? null
 

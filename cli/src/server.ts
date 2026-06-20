@@ -42,12 +42,45 @@ export async function startServer(opts: {
   state: ServerState
   /** Triggers a fresh analysis when the dashboard requests one (POST /api/run). */
   onRunRequest?: () => Promise<void> | void
+  /** Deletes persisted artifacts on disk (DELETE /api/data). */
+  onClearData?: (scope: "all" | "runs" | "chats") => Promise<string[]> | string[]
 }): Promise<ServerHandle> {
-  const { state, onRunRequest } = opts
+  const { state, onRunRequest, onClearData } = opts
   let running = false
+
+  // Connected dashboards + a broadcast helper, hoisted so request handlers
+  // (e.g. DELETE /api/data) can push live updates too.
+  const sockets = new Set<WebSocket>()
+  const broadcast = (event: RunEvent) => {
+    const payload = JSON.stringify(event)
+    for (const ws of sockets) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(payload)
+    }
+  }
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost")
+
+    // Wipe persisted data from .codelens/ and reset the in-memory state so a
+    // reload (which the dashboard triggers) shows the empty dashboard without
+    // needing to restart the CLI.
+    if (url.pathname === "/api/data" && req.method === "DELETE") {
+      const scopeParam = url.searchParams.get("scope")
+      const scope = scopeParam === "runs" || scopeParam === "chats" ? scopeParam : "all"
+      let removed: string[] = []
+      try {
+        if (onClearData) removed = (await onClearData(scope)) ?? []
+      } catch {
+        /* best-effort; still report ok so the dashboard can reset its UI */
+      }
+      if (scope === "all" || scope === "runs") {
+        state.current = null
+        broadcast({ type: "state", state: null })
+      }
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ ok: true, removed }))
+      return
+    }
 
     // Trigger a re-run from the dashboard's "Run checks" button.
     if (url.pathname === "/api/run" && req.method === "POST") {
@@ -101,7 +134,6 @@ export async function startServer(opts: {
   })
 
   const wss = new WebSocketServer({ server, path: "/ws" })
-  const sockets = new Set<WebSocket>()
   wss.on("connection", (ws) => {
     sockets.add(ws)
     // Hydrate the freshly connected client with the latest known state.
@@ -116,12 +148,7 @@ export async function startServer(opts: {
 
   return {
     url,
-    broadcast(event) {
-      const payload = JSON.stringify(event)
-      for (const ws of sockets) {
-        if (ws.readyState === WebSocket.OPEN) ws.send(payload)
-      }
-    },
+    broadcast,
     close() {
       return new Promise((resolve) => {
         for (const ws of sockets) ws.close()
