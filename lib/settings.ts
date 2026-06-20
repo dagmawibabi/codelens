@@ -23,9 +23,9 @@ export interface ProviderDef {
 }
 
 /**
- * Catalog of providers the CodeLens security auditor can use. The dashboard
+ * Catalog of providers the Projectlens security auditor can use. The dashboard
  * persists the user's choice locally; the installed CLI reads the same shape
- * from `.codelens.json` (or the matching environment variable).
+ * from `.projectlens.json` (or the matching environment variable).
  */
 export const PROVIDERS: ProviderDef[] = [
   {
@@ -133,7 +133,7 @@ export const FREE_OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 /** Zero-config fallback through the Vercel AI Gateway. */
 export const FALLBACK_MODEL = "google/gemini-2.5-flash"
 
-export interface CodeLensSettings {
+export interface ProjectlensSettings {
   provider: ProviderId
   model: string
   /** Per-provider API keys, keyed by provider id. */
@@ -146,7 +146,7 @@ export interface CodeLensSettings {
   maxFiles: number
   /** Enable the in-dashboard AI chat assistant ("Ask AI"). */
   chatEnabled: boolean
-  /** Persist chat history to .codelens/chats.json (vs. memory-only). */
+  /** Persist chat history to .projectlens/chats.json (vs. memory-only). */
   persistChats: boolean
   /** Optional GitHub token for higher API rate limits / private repos. */
   githubToken: string
@@ -160,7 +160,7 @@ export interface CodeLensSettings {
   colorAccents: boolean
 }
 
-export const DEFAULT_SETTINGS: CodeLensSettings = {
+export const DEFAULT_SETTINGS: ProjectlensSettings = {
   provider: "openrouter",
   model: FREE_OPENROUTER_MODEL,
   keys: {},
@@ -174,7 +174,7 @@ export const DEFAULT_SETTINGS: CodeLensSettings = {
   colorAccents: false,
 }
 
-const STORAGE_KEY = "codelens.settings.v1"
+const STORAGE_KEY = "projectlens.settings.v1"
 
 /**
  * Toggle the `accents` class on <html>, which swaps the monochrome severity /
@@ -186,19 +186,19 @@ export function applyColorAccents(on: boolean) {
   document.documentElement.classList.toggle("accents", on)
 }
 
-export function loadSettings(): CodeLensSettings {
+export function loadSettings(): ProjectlensSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULT_SETTINGS
-    const parsed = JSON.parse(raw) as Partial<CodeLensSettings>
+    const parsed = JSON.parse(raw) as Partial<ProjectlensSettings>
     return { ...DEFAULT_SETTINGS, ...parsed, keys: { ...DEFAULT_SETTINGS.keys, ...parsed.keys } }
   } catch {
     return DEFAULT_SETTINGS
   }
 }
 
-export function saveSettings(settings: CodeLensSettings) {
+export function saveSettings(settings: ProjectlensSettings) {
   if (typeof window === "undefined") return
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
 }
@@ -211,10 +211,10 @@ export function maskKey(key: string): string {
 }
 
 /**
- * Produce the `.codelens.json` the installed CLI consumes. The active
+ * Produce the `.projectlens.json` the installed CLI consumes. The active
  * provider's key is written to its env var name; other keys are omitted.
  */
-export function toConfigFile(settings: CodeLensSettings) {
+export function toConfigFile(settings: ProjectlensSettings) {
   const provider = getProvider(settings.provider)
   const env: Record<string, string> = {}
   const key = settings.keys[settings.provider]

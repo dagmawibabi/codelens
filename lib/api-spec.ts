@@ -53,7 +53,7 @@ const ENDPOINTS: ApiEndpoint[] = [
     path: "/api/chat",
     summary: "Stream an AI assistant response",
     description:
-      "Accepts the full UI message history and streams back the assistant reply using the AI SDK. On completion the conversation is persisted to .codelens/chats.json so it survives reloads. Uses google/gemini-2.5-flash by default.",
+      "Accepts the full UI message history and streams back the assistant reply using the AI SDK. On completion the conversation is persisted to .projectlens/chats.json so it survives reloads. Uses google/gemini-2.5-flash by default.",
     group: "AI Chat",
     body: [
       { name: "id", type: "string", required: true, description: "Chat id to persist the conversation under." },
@@ -98,7 +98,7 @@ const ENDPOINTS: ApiEndpoint[] = [
     method: "DELETE",
     path: "/api/chats/:id",
     summary: "Delete a chat",
-    description: "Removes a chat and its history from .codelens/chats.json.",
+    description: "Removes a chat and its history from .projectlens/chats.json.",
     group: "AI Chat",
     pathParams: [{ name: "id", type: "string", required: true, description: "The chat id to delete." }],
     returns: "{ ok: true }",
@@ -162,7 +162,7 @@ const ENDPOINTS: ApiEndpoint[] = [
     path: "/api/data",
     summary: "Delete persisted server-side data",
     description:
-      "Removes CodeLens artifacts written under .codelens/ (run history, latest run, insights, and saved chats). Used by Settings → Data & storage. Browser localStorage is cleared separately on the client.",
+      "Removes Projectlens artifacts written under .projectlens/ (run history, latest run, insights, and saved chats). Used by Settings → Data & storage. Browser localStorage is cleared separately on the client.",
     group: "System",
     query: [
       {
@@ -189,10 +189,10 @@ const ENDPOINTS: ApiEndpoint[] = [
 
 export function getApiSpec(): ApiSpec {
   return {
-    name: "CodeLens API",
+    name: "Projectlens API",
     version: "1.0.0",
     description:
-      "Internal HTTP API powering the CodeLens dashboard: AI chat, model catalogs, GitHub insights, and this self-describing reference.",
+      "Internal HTTP API powering the Projectlens dashboard: AI chat, model catalogs, GitHub insights, and this self-describing reference.",
     generatedAt: new Date().toISOString(),
     endpoints: ENDPOINTS,
   }

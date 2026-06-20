@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import type { RunPhase, PhaseStatus, AnalysisReport } from "@/lib/schema"
 
 /**
- * Default model the CodeLens CLI audits with — kept in sync with the CLI's
+ * Default model the Projectlens CLI audits with — kept in sync with the CLI's
  * `config.ts` DEFAULTS so the simulated run names the same model the real run
  * would stream to.
  */
@@ -28,12 +28,12 @@ export interface PhaseMeta {
 }
 
 export const RUN_PHASES: PhaseMeta[] = [
-  { id: "detect", label: "Detect project", command: "codelens detect" },
+  { id: "detect", label: "Detect project", command: "projectlens detect" },
   { id: "lint", label: "ESLint", command: "eslint . --format json" },
   { id: "types", label: "TypeScript", command: "tsc --noEmit --pretty false" },
   { id: "deps", label: "Dependency audit", command: "pnpm audit --json" },
-  { id: "security", label: "AI security review", command: "codelens audit --ai" },
-  { id: "insights", label: "Project insights", command: "codelens scan --insights" },
+  { id: "security", label: "AI security review", command: "projectlens audit --ai" },
+  { id: "insights", label: "Project insights", command: "projectlens scan --insights" },
 ]
 
 const PHASE_ORDER: RunPhase[] = RUN_PHASES.map((p) => p.id)
@@ -41,7 +41,7 @@ const PHASE_ORDER: RunPhase[] = RUN_PHASES.map((p) => p.id)
 /**
  * Builds the simulated terminal output from the *actual* report being shown,
  * so a run in the standalone preview / demo mode reflects the same numbers and
- * model the real CodeLens CLI would produce instead of canned placeholders.
+ * model the real Projectlens CLI would produce instead of canned placeholders.
  */
 function buildSimLogs(report: AnalysisReport, aiEnabled: boolean): Record<RunPhase, { level: LogLevel; text: string }[]> {
   const { lint, types, security } = report
@@ -51,7 +51,7 @@ function buildSimLogs(report: AnalysisReport, aiEnabled: boolean): Record<RunPha
 
   return {
     detect: [
-      { level: "command", text: `$ ${packageManager} codelens detect` },
+      { level: "command", text: `$ ${packageManager} projectlens detect` },
       { level: "info", text: "Scanning working directory…" },
       { level: "success", text: `Detected ${framework}` },
       { level: "info", text: `Package manager: ${packageManager}${hasTypeScript ? " · TypeScript" : ""}` },
@@ -90,7 +90,7 @@ function buildSimLogs(report: AnalysisReport, aiEnabled: boolean): Record<RunPha
     ],
     security: aiEnabled
       ? [
-          { level: "command", text: "$ codelens audit --ai" },
+          { level: "command", text: "$ projectlens audit --ai" },
           { level: "info", text: "Selecting security-relevant files…" },
           { level: "info", text: `Streaming to ${DEFAULT_AI_MODEL}…` },
           ...(topFinding
@@ -108,7 +108,7 @@ function buildSimLogs(report: AnalysisReport, aiEnabled: boolean): Record<RunPha
         ]
       : [{ level: "info", text: "AI security review skipped (--no-ai)" }],
     insights: [
-      { level: "command", text: "$ codelens scan --insights" },
+      { level: "command", text: "$ projectlens scan --insights" },
       { level: "info", text: "Scanning routes, env, network, git & dependency graph…" },
       { level: "success", text: "Project insights ready" },
     ],
@@ -124,7 +124,7 @@ function severityRank(sev: string): number {
 /** Scripted log output per phase. Each entry becomes a streamed line. */
 const PHASE_LOGS: Record<RunPhase, { level: LogLevel; text: string }[]> = {
   detect: [
-    { level: "command", text: "$ codelens detect" },
+    { level: "command", text: "$ projectlens detect" },
     { level: "info", text: "Scanning working directory…" },
     { level: "success", text: "Detected Next.js 16 (App Router)" },
     { level: "info", text: "Package manager: pnpm · TypeScript 5.6" },
@@ -152,7 +152,7 @@ const PHASE_LOGS: Record<RunPhase, { level: LogLevel; text: string }[]> = {
     { level: "success", text: "Audit complete — 3 advisories" },
   ],
   security: [
-    { level: "command", text: "$ codelens audit --ai" },
+    { level: "command", text: "$ projectlens audit --ai" },
     { level: "info", text: "Selecting security-relevant files (12 of 142)…" },
     { level: "info", text: "Streaming to anthropic/claude-opus-4.6…" },
     { level: "error", text: "CRITICAL — SQL injection in app/api/orders/route.ts:31" },
@@ -160,7 +160,7 @@ const PHASE_LOGS: Record<RunPhase, { level: LogLevel; text: string }[]> = {
     { level: "success", text: "Review complete — 8 findings" },
   ],
   insights: [
-    { level: "command", text: "$ codelens scan --insights" },
+    { level: "command", text: "$ projectlens scan --insights" },
     { level: "info", text: "Scanning project for routes, env, network, git…" },
     { level: "info", text: "Building dependency graph (312 nodes)…" },
     { level: "success", text: "Insights ready — 9 collectors" },
@@ -177,7 +177,7 @@ export interface RunState {
   start: () => void
   /**
    * How the current run is being driven:
-   * - `live` — real events from a connected CodeLens CLI backend
+   * - `live` — real events from a connected Projectlens CLI backend
    * - `sim`  — scripted fallback animation (no backend / standalone preview)
    * - `null` — not yet determined
    */
@@ -309,7 +309,7 @@ type RunEventLike =
   | { type: "package-done"; packageName: string; report: { health?: { score?: number } } }
 
 /**
- * Drives the Run-checks view. Prefers a real, connected CodeLens CLI backend:
+ * Drives the Run-checks view. Prefers a real, connected Projectlens CLI backend:
  * it POSTs `/api/run` and renders the actual phase + log stream arriving over
  * the `/ws` socket. When there's no backend (standalone preview) it falls back
  * to a scripted simulation so the UI is still demonstrable.

@@ -1,7 +1,7 @@
 import type { AnalysisReport, TrendPoint } from "./schema"
 
 /**
- * Realistic fixture representing a CodeLens run against a sample Next.js app.
+ * Realistic fixture representing a Projectlens run against a sample Next.js app.
  * Used in the v0 preview and as a fallback when no live CLI data is present.
  */
 export const mockReport: AnalysisReport = {

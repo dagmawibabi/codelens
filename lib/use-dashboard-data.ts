@@ -18,7 +18,7 @@ export interface DashboardData {
 
 /**
  * Where the rendered data came from:
- * - `live`   — a real CodeLens CLI backend (via /api/state + /ws)
+ * - `live`   — a real Projectlens CLI backend (via /api/state + /ws)
  * - `demo`   — bundled sample data, loaded on demand from the Run-checks menu
  * - `empty`  — no run yet; everything is zero/empty (the default)
  * - `loading`— resolving the backend
@@ -41,7 +41,7 @@ async function fetchState(url: string): Promise<DashboardData | null> {
 }
 
 /**
- * Resolves the dashboard's data. When served by the CodeLens CLI, this fetches
+ * Resolves the dashboard's data. When served by the Projectlens CLI, this fetches
  * the real analysis from `/api/state` and live-updates over the `/ws` socket.
  * In the standalone preview (no CLI backend) it falls back to bundled mock data
  * so the UI is always populated.

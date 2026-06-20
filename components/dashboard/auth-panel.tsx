@@ -234,7 +234,7 @@ export function AuthPanel({ auth }: { auth: AuthResult }) {
         <div>
           <p className="text-sm font-medium text-foreground">No auth provider detected</p>
           <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">
-            CodeLens looks for popular auth libraries — <span className="font-mono">better-auth</span>,{" "}
+            Projectlens looks for popular auth libraries — <span className="font-mono">better-auth</span>,{" "}
             <span className="font-mono">@clerk/nextjs</span>, <span className="font-mono">next-auth</span>,{" "}
             <span className="font-mono">@supabase/supabase-js</span>, <span className="font-mono">lucia</span>,{" "}
             <span className="font-mono">firebase</span> and more. Install one to see a breakdown here.

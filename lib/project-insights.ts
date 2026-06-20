@@ -1,7 +1,7 @@
 import type { Severity } from "./schema"
 
 /**
- * Extended project intelligence emitted by the CodeLens CLI beyond the core
+ * Extended project intelligence emitted by the Projectlens CLI beyond the core
  * lint/types/security/deps results: environment variables, network calls,
  * git + CI/CD state, project setup/config, and documentation readiness.
  *
@@ -787,7 +787,7 @@ export interface AuthProviderInfo {
   packageName: string
   docsUrl: string
   /**
-   * Whether CodeLens can introspect this provider's config in depth
+   * Whether Projectlens can introspect this provider's config in depth
    * (methods, plugins, session). Only Better Auth has full support today;
    * others are detected and surfaced with provider-level guidance.
    */
@@ -1660,8 +1660,8 @@ export const projectInsights: ProjectInsights = {
         id: "quality",
         label: "Documentation Quality",
         tagline: "Human-facing completeness and readability",
-        source: "CodeLens quality rubric (readme-doctor + Vale)",
-        href: "https://github.com/vercel-labs/codelens",
+        source: "Projectlens quality rubric (readme-doctor + Vale)",
+        href: "https://github.com/dagmawibabi/projectlens",
         score: 70,
         weight: 0.25,
         band: "good",

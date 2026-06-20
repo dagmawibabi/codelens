@@ -4,15 +4,15 @@ import path from "node:path"
 import type { StoredChat } from "./chat-types"
 
 /**
- * Server-side persistence for Ask-AI chats. Mirrors the CLI's `.codelens`
+ * Server-side persistence for Ask-AI chats. Mirrors the CLI's `.projectlens`
  * convention (history.json / latest.json / insights.json) by writing chats to
- * `.codelens/chats.json` in the project root. This keeps conversation history
+ * `.projectlens/chats.json` in the project root. This keeps conversation history
  * in the same place runs are stored, so it persists across dashboard sessions.
  */
 
-const DIR = ".codelens"
+const DIR = ".projectlens"
 const FILE = "chats.json"
-const CONFIG = ".codelens.json"
+const CONFIG = ".projectlens.json"
 
 function chatsPath() {
   return path.join(process.cwd(), DIR, FILE)
@@ -20,7 +20,7 @@ function chatsPath() {
 
 /**
  * Whether chats should be written to disk. Controlled by `chat.persist` in
- * `.codelens.json` (written by the dashboard Settings page). Defaults to true.
+ * `.projectlens.json` (written by the dashboard Settings page). Defaults to true.
  * When false, chats live only in `memoryStore` for the server's lifetime.
  */
 async function readConfig(): Promise<{ chat?: { persist?: boolean; enabled?: boolean; model?: string } }> {
@@ -36,7 +36,7 @@ async function persistEnabled(): Promise<boolean> {
   return (await readConfig()).chat?.persist !== false
 }
 
-/** Chat-assistant config from `.codelens.json` (enabled flag + default model). */
+/** Chat-assistant config from `.projectlens.json` (enabled flag + default model). */
 export async function getChatConfig(): Promise<{ enabled: boolean; model?: string }> {
   const cfg = (await readConfig()).chat
   return { enabled: cfg?.enabled !== false, model: cfg?.model }

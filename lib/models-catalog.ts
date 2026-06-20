@@ -3,7 +3,7 @@
  * (`/api/models-catalog`, for the standalone preview) and directly by the
  * client model picker. models.dev sends `Access-Control-Allow-Origin: *`, so
  * the browser can fetch it without a proxy — which is what lets the picker work
- * when the dashboard is served as a static bundle by the CodeLens CLI (where no
+ * when the dashboard is served as a static bundle by the Projectlens CLI (where no
  * Next API routes exist).
  */
 

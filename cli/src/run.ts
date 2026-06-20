@@ -240,8 +240,8 @@ export async function runWorkspaceAnalysis(opts: RunOptions): Promise<WorkspaceR
       packageData[pkg.name] = { report, insights }
     } catch (err) {
       // Isolate failures — one broken package shouldn't abort the whole workspace run
-      if (process.env.CODELENS_DEBUG) {
-        console.error(`[codelens] package "${pkg.name}" failed:`, err)
+      if (process.env.PROJECTLENS_DEBUG) {
+        console.error(`[Projectlens] package "${pkg.name}" failed:`, err)
       }
     }
   }

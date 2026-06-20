@@ -140,7 +140,7 @@ export function ModelPicker({
 
   // Fetch the catalog straight from models.dev (CORS-enabled). This avoids the
   // `/api/models-catalog` route, which doesn't exist when the dashboard is
-  // served as a static bundle by the CodeLens CLI. Retries are disabled so a
+  // served as a static bundle by the Projectlens CLI. Retries are disabled so a
   // transient failure can't turn into a request storm.
   const { data, isLoading, error } = useSWR<CatalogModel[]>(
     open ? "models.dev/catalog" : null,

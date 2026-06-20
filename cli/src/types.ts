@@ -1,5 +1,5 @@
 /**
- * Shared types for the CodeLens CLI engine.
+ * Shared types for the Projectlens CLI engine.
  * The JSON shape produced here is what the dashboard consumes (see
  * `lib/schema.ts` in the dashboard package for the mirrored client types).
  */

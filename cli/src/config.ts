@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 /**
- * Shape of the `.codelens.json` file the dashboard's Settings page generates.
+ * Shape of the `.projectlens.json` file the dashboard's Settings page generates.
  * Every field is optional so older / partial files still load cleanly.
  */
-export interface CodeLensFileConfig {
+export interface ProjectlensFileConfig {
   ai?: {
     enabled?: boolean
     provider?: string
@@ -53,11 +53,11 @@ const DEFAULTS: ResolvedConfig = {
 
 let cached: ResolvedConfig | null = null
 
-/** Read and parse `.codelens.json` from the project root, if present. */
-function readFileConfig(cwd: string): CodeLensFileConfig {
+/** Read and parse `.projectlens.json` from the project root, if present. */
+function readFileConfig(cwd: string): ProjectlensFileConfig {
   try {
-    const raw = readFileSync(join(cwd, ".codelens.json"), "utf8")
-    const parsed = JSON.parse(raw) as CodeLensFileConfig
+    const raw = readFileSync(join(cwd, ".projectlens.json"), "utf8")
+    const parsed = JSON.parse(raw) as ProjectlensFileConfig
     return parsed && typeof parsed === "object" ? parsed : {}
   } catch {
     return {}
@@ -67,7 +67,7 @@ function readFileConfig(cwd: string): CodeLensFileConfig {
 /**
  * Load the effective CLI configuration. Merges, in priority order:
  *   1. process.env  (highest — explicit overrides / CI secrets)
- *   2. .codelens.json
+ *   2. .projectlens.json
  *   3. built-in defaults
  *
  * As a side effect, any `env` entries in the file that are not already set in
@@ -87,19 +87,19 @@ export function loadConfig(cwd: string = process.cwd()): ResolvedConfig {
   }
 
   const model =
-    process.env.CODELENS_MODEL ?? file.ai?.model ?? DEFAULTS.model
+    process.env.projectlens_MODEL ?? file.ai?.model ?? DEFAULTS.model
   const fallbackModel =
-    process.env.CODELENS_FALLBACK_MODEL ?? file.ai?.fallbackModel ?? DEFAULTS.fallbackModel
+    process.env.projectlens_FALLBACK_MODEL ?? file.ai?.fallbackModel ?? DEFAULTS.fallbackModel
 
   cached = {
     aiEnabled: file.ai?.enabled ?? DEFAULTS.aiEnabled,
     model,
     fallbackModel,
-    maxFiles: Number(process.env.CODELENS_MAX_FILES) || file.ai?.maxFiles || DEFAULTS.maxFiles,
+    maxFiles: Number(process.env.projectlens_MAX_FILES) || file.ai?.maxFiles || DEFAULTS.maxFiles,
     redactSecrets: file.ai?.redactSecrets ?? DEFAULTS.redactSecrets,
     chatEnabled: file.chat?.enabled ?? DEFAULTS.chatEnabled,
     persistChats: file.chat?.persist ?? DEFAULTS.persistChats,
-    defaultRepo: file.github?.defaultRepo?.trim() || process.env.CODELENS_REPO?.trim() || DEFAULTS.defaultRepo,
+    defaultRepo: file.github?.defaultRepo?.trim() || process.env.projectlens_REPO?.trim() || DEFAULTS.defaultRepo,
   }
   return cached
 }

@@ -1,5 +1,5 @@
 /**
- * Client-side mirror of the JSON the CodeLens CLI emits (see cli/src/types.ts).
+ * Client-side mirror of the JSON the Projectlens CLI emits (see cli/src/types.ts).
  * The dashboard renders against these types whether data comes from live
  * WebSocket events or the bundled mock fixture.
  */
@@ -293,7 +293,7 @@ export type RunPhase = "detect" | "lint" | "types" | "deps" | "security" | "insi
 export type PhaseStatus = "idle" | "running" | "done" | "skipped"
 
 /**
- * Streaming events emitted by the CodeLens CLI over the `/ws` socket. Mirrors
+ * Streaming events emitted by the Projectlens CLI over the `/ws` socket. Mirrors
  * the `RunEvent` union in the CLI package (`cli/src/types.ts`). The dashboard
  * consumes these to drive the live run view and refresh its data.
  */

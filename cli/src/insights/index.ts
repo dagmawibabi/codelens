@@ -42,8 +42,8 @@ export async function collectInsights(
       return result
     } catch (err) {
       onProgress?.(`${label} (failed)`)
-      if (process.env.CODELENS_DEBUG) {
-        console.error(`[codelens] insight "${label}" failed:`, err)
+      if (process.env.PROJECTLENS_DEBUG) {
+        console.error(`[Projectlens] insight "${label}" failed:`, err)
       }
       return fallback
     }

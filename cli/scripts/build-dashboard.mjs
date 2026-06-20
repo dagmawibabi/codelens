@@ -31,20 +31,20 @@ function restoreApi() {
   }
 }
 
-console.log("[codelens] Building dashboard (static export)...")
+console.log("[Projectlens] Building dashboard (static export)...")
 const nextBin = join(dashboardRoot, "node_modules", ".bin", "next")
 
 try {
   if (existsSync(apiDir)) {
     renameSync(apiDir, apiStash)
     apiStashed = true
-    console.log("[codelens] Excluded app/api from the static export.")
+    console.log("[Projectlens] Excluded app/api from the static export.")
   }
 
   execSync(`"${nextBin}" build`, {
     cwd: dashboardRoot,
     stdio: "inherit",
-    env: { ...process.env, CODELENS_EXPORT: "1" },
+    env: { ...process.env, PROJECTLENS_EXPORT: "1" },
   })
 } finally {
   // Always put the API routes back, even if the build fails.
@@ -53,13 +53,13 @@ try {
 
 if (!existsSync(exportDir)) {
   console.error(
-    `[codelens] Expected static export at ${exportDir} but it was not found.`,
+    `[Projectlens] Expected static export at ${exportDir} but it was not found.`,
   )
   process.exit(1)
 }
 
-console.log("[codelens] Copying dashboard into CLI package...")
+console.log("[Projectlens] Copying dashboard into CLI package...")
 rmSync(publicDir, { recursive: true, force: true })
 cpSync(exportDir, publicDir, { recursive: true })
 
-console.log("[codelens] Dashboard bundled at cli/public ✓")
+console.log("[Projectlens] Dashboard bundled at cli/public ✓")

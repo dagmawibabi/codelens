@@ -204,7 +204,7 @@ export function ChatThread({
                 }
               }}
               rows={1}
-              placeholder="Ask CodeLens Assistant…"
+              placeholder="Ask Projectlens Assistant…"
               className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>

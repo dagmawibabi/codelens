@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import type { AnalysisReport, DashboardState, ProjectInsights, TrendPoint, WorkspaceReport } from "./types.js"
 
-const DIR = ".codelens"
+const DIR = ".projectlens"
 const HISTORY_FILE = "history.json"
 const LATEST_FILE = "latest.json"
 const INSIGHTS_FILE = "insights.json"
@@ -16,7 +16,7 @@ function dir(cwd: string) {
 export type ClearScope = "all" | "runs" | "chats"
 
 /**
- * Delete persisted artifacts from `.codelens/`. Mirrors the dashboard's
+ * Delete persisted artifacts from `.projectlens/`. Mirrors the dashboard's
  * "Data & storage" controls so "Delete run history" / "Delete everything"
  * actually remove the JSON files on disk (not just the in-memory state).
  *   - "runs"  → history.json, latest.json, insights.json

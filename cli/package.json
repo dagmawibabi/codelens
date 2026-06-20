@@ -4,7 +4,7 @@
   "description": "Local lint, type-check & AI security dashboard for JS/TS projects",
   "type": "module",
   "bin": {
-    "codelens": "./dist/cli.js"
+    "projectlens": "./dist/cli.js"
   },
   "files": [
     "dist",

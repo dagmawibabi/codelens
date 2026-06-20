@@ -13,7 +13,7 @@ import type { DashboardState, RunEvent } from "./types.js"
 const program = new Command()
 
 program
-  .name("codelens")
+  .name("projectlens")
   .description("Local lint, type-check & AI security dashboard for JS/TS projects")
   .version("0.1.0")
   .option("-p, --port <number>", "preferred dashboard port", "4321")
@@ -30,7 +30,7 @@ const opts = program.opts()
 
 const cwd = opts.dir ? path.resolve(opts.dir) : process.cwd()
 
-// Load `.codelens.json` first: it hydrates process.env (AI Gateway key,
+// Load `.projectlens.json` first: it hydrates process.env (AI Gateway key,
 // GITHUB_TOKEN, …) and provides the model / file-budget chosen in the
 // dashboard Settings page, so the CLI and dashboard stay in sync.
 const config = loadConfig(cwd)
@@ -40,11 +40,11 @@ const ai = Boolean(opts.ai) && config.aiEnabled && aiEnabled()
 
 if (Boolean(opts.ai) && config.aiEnabled && !aiEnabled()) {
   console.error(
-    "\x1b[33m![codelens]\x1b[0m AI security audit is enabled but no gateway key was found.\n" +
+    "\x1b[33m![Projectlens]\x1b[0m AI security audit is enabled but no gateway key was found.\n" +
       "  The default model is free, but requests still route through the Vercel AI Gateway,\n" +
       "  which needs an API key (the key is free — it does not require an OpenRouter account).\n" +
       "    1. Get a free key at \x1b[36mhttps://vercel.com/ai-gateway\x1b[0m\n" +
-      "    2. Run \x1b[1mexport AI_GATEWAY_API_KEY=...\x1b[0m  (or set it in .codelens.json / your shell)\n" +
+      "    2. Run \x1b[1mexport AI_GATEWAY_API_KEY=...\x1b[0m  (or set it in .projectlens.json / your shell)\n" +
       "  Alternatively set OPENAI_API_KEY, or pass \x1b[1m--no-ai\x1b[0m to silence this.\n" +
       "  Lint, type-check, and dependency audit still run without it.\n",
   )
@@ -174,7 +174,7 @@ async function main() {
     },
     onClearData: (scope) => clearData(cwd, scope),
   })
-  console.log(`\n  \x1b[36mCodeLens\x1b[0m dashboard → \x1b[1m${server.url}\x1b[0m\n`)
+  console.log(`\n  \x1b[36mProjectlens\x1b[0m dashboard → \x1b[1m${server.url}\x1b[0m\n`)
 
   if (monorepo) {
     console.log(
@@ -220,7 +220,7 @@ async function main() {
 
 function printCiSummary(report: import("./types.js").AnalysisReport) {
   const { health, lint, types, security } = report
-  console.log(`\nCodeLens — ${report.meta.project.framework} project`)
+  console.log(`\nProjectlens — ${report.meta.project.framework} project`)
   console.log(`  Health score : ${health.score} (${health.grade})`)
   console.log(`  Lint         : ${lint.errorCount} errors, ${lint.warningCount} warnings`)
   console.log(`  Types        : ${types.diagnostics.length} errors`)
@@ -231,6 +231,6 @@ function printCiSummary(report: import("./types.js").AnalysisReport) {
 }
 
 main().catch((err) => {
-  console.error("\x1b[31m[codelens] fatal:\x1b[0m", err)
+  console.error("\x1b[31m[Projectlens] fatal:\x1b[0m", err)
   process.exit(1)
 })

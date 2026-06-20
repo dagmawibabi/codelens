@@ -68,11 +68,11 @@ export interface Task {
   updatedAt: string
 }
 
-const STORAGE_KEY = "codelens.tasks.v2"
-const LEGACY_KEY = "codelens.tasks.v1"
-const COLUMNS_KEY = "codelens.task-columns.v1"
-const GROUPS_KEY = "codelens.task-groups.v1"
-const EVENT = "codelens:tasks-changed"
+const STORAGE_KEY = "projectlens.tasks.v2"
+const LEGACY_KEY = "projectlens.tasks.v1"
+const COLUMNS_KEY = "projectlens.task-columns.v1"
+const GROUPS_KEY = "projectlens.task-groups.v1"
+const EVENT = "projectlens:tasks-changed"
 
 /** Map a finding severity to a sensible default task priority. */
 function severityToPriority(sev?: Severity): TaskPriority {

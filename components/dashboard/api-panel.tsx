@@ -84,7 +84,7 @@ export function ApiPanel({ api }: { api: ApiResult }) {
         <div>
           <p className="text-sm font-medium text-foreground">No API endpoints detected</p>
           <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">
-            CodeLens maps route handlers and server actions across Next.js, Express, Hono, Fastify, SvelteKit and Nuxt.
+            Projectlens maps route handlers and server actions across Next.js, Express, Hono, Fastify, SvelteKit and Nuxt.
             Add a server route to see your API surface here.
           </p>
         </div>

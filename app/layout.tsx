@@ -11,7 +11,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'CodeLens — Local Quality & Security Dashboard',
+  title: 'Projectlens — Local Quality & Security Dashboard',
   description:
     'Run ESLint and TypeScript checks and an AI-powered security audit on your local project, with rich, detailed reporting.',
   generator: 'v0.app',
@@ -39,7 +39,7 @@ export default function RootLayout({
         {/* Apply the color-accent preference before paint to avoid a flash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(JSON.parse(localStorage.getItem('codelens.settings.v1')||'{}').colorAccents){document.documentElement.classList.add('accents')}}catch(e){}`,
+            __html: `try{if(JSON.parse(localStorage.getItem('projectlens.settings.v1')||'{}').colorAccents){document.documentElement.classList.add('accents')}}catch(e){}`,
           }}
         />
       </head>

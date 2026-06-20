@@ -59,7 +59,7 @@ const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"] as const
 
 /**
  * Triggers a security-only rescan (re-runs just the AI security pass on the
- * connected CodeLens CLI backend, reusing every other result). Completion is
+ * connected Projectlens CLI backend, reusing every other result). Completion is
  * detected when fresh data arrives over the live socket and swaps the
  * `security` prop reference — at which point the spinner clears.
  */
@@ -91,7 +91,7 @@ function useSecurityRescan(security: SecurityResult) {
       // 409 = a run is already in progress; its result will still arrive.
       if (!res.ok && res.status !== 409) {
         throw new Error(
-          res.status === 501 ? "Rescan needs the CodeLens CLI backend" : `Rescan failed (${res.status})`,
+          res.status === 501 ? "Rescan needs the Projectlens CLI backend" : `Rescan failed (${res.status})`,
         )
       }
     } catch (err) {

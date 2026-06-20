@@ -2,7 +2,7 @@
  * Shared AI Gateway model-list logic. The gateway sends permissive CORS
  * headers, so the browser can fetch it directly — letting the settings picker
  * show the live gateway catalog even when the dashboard is served as a static
- * bundle by the CodeLens CLI (no Next API routes available).
+ * bundle by the Projectlens CLI (no Next API routes available).
  */
 
 import type { ModelOption } from "@/lib/settings"

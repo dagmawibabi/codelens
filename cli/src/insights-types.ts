@@ -664,7 +664,7 @@ export interface AuthProviderInfo {
   /** npm package the detection matched on. */
   packageName: string
   docsUrl: string
-  /** Whether CodeLens can introspect this provider's config in depth. */
+  /** Whether Projectlens can introspect this provider's config in depth. */
   deepSupport: boolean
 }
 

@@ -1,19 +1,19 @@
 /**
  * Client-side data management helpers used by Settings → Data & storage.
  *
- * CodeLens keeps state in two places:
+ * Projectlens keeps state in two places:
  *  - the browser's localStorage (settings, task board, columns, groups), all
- *    namespaced under the `codelens.` prefix; and
- *  - the CLI's `.codelens/` folder on disk (run history, latest run, insights,
+ *    namespaced under the `Projectlens.` prefix; and
+ *  - the CLI's `.projectlens/` folder on disk (run history, latest run, insights,
  *    saved chats), cleared via `DELETE /api/data`.
  *
  * These helpers wipe each surface so the dashboard can offer a real "delete
  * everything" rather than a cosmetic reset.
  */
 
-const PREFIX = "codelens."
+const PREFIX = "projectlens."
 
-/** Number of `codelens.*` keys currently held in localStorage. */
+/** Number of `Projectlens.*` keys currently held in localStorage. */
 export function countLocalKeys(): number {
   if (typeof window === "undefined") return 0
   let count = 0
@@ -25,7 +25,7 @@ export function countLocalKeys(): number {
 }
 
 /**
- * Remove every `codelens.*` key from localStorage (settings, tasks, columns,
+ * Remove every `Projectlens.*` key from localStorage (settings, tasks, columns,
  * groups, and any legacy keys). Returns the keys that were removed.
  */
 export function clearLocalData(): string[] {

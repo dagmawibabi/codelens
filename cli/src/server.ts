@@ -64,7 +64,7 @@ export async function startServer(opts: {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost")
 
-    // Wipe persisted data from .codelens/ and reset the in-memory state so a
+    // Wipe persisted data from .projectlens/ and reset the in-memory state so a
     // reload (which the dashboard triggers) shows the empty dashboard without
     // needing to restart the CLI.
     if (url.pathname === "/api/data" && req.method === "DELETE") {
@@ -108,7 +108,7 @@ export async function startServer(opts: {
       Promise.resolve()
         .then(() => onRunRequest(scope, packageParam))
         .catch((err) => {
-          console.error("\x1b[31m[codelens]\x1b[0m run failed:", err)
+          console.error("\x1b[31m[Projectlens]\x1b[0m run failed:", err)
         })
         .finally(() => {
           running = false

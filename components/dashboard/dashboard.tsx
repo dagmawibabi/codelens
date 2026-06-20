@@ -283,7 +283,7 @@ export function Dashboard({
                 <Terminal className="size-5" />
               </div>
               <div className="flex items-center gap-2">
-                <h1 className="font-mono text-base font-semibold text-foreground">CodeLens</h1>
+                <h1 className="font-mono text-base font-semibold text-foreground">Projectlens</h1>
                 {report.meta.aiEnabled && (
                   <span className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase text-foreground">
                     <Sparkles className="size-2.5" />

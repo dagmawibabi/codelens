@@ -3,12 +3,12 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 
 /**
- * Server-side artifacts CodeLens writes under `.codelens/` in the project root.
+ * Server-side artifacts Projectlens writes under `.projectlens/` in the project root.
  * Deleting these clears persisted run history, the latest run snapshot, project
  * insights, and saved Ask-AI chats — the data that survives across dashboard
  * sessions on the machine running the CLI.
  */
-const CODELENS_FILES = ["history.json", "latest.json", "insights.json", "chats.json"]
+const PROJECTLENS_FILES = ["history.json", "latest.json", "insights.json", "chats.json"]
 
 // Served live by the CLI server at runtime; excluded from the static export.
 export const dynamic = "force-dynamic"
@@ -28,9 +28,9 @@ export async function DELETE(req: Request) {
       ? ["history.json", "latest.json", "insights.json"]
       : scope === "chats"
         ? ["chats.json"]
-        : CODELENS_FILES
+        : PROJECTLENS_FILES
 
-  const base = path.join(process.cwd(), ".codelens")
+  const base = path.join(process.cwd(), ".projectlens")
   const removed: string[] = []
 
   await Promise.all(

@@ -41,7 +41,7 @@ import {
   toConfigFile,
   applyColorAccents,
   DEFAULT_SETTINGS,
-  type CodeLensSettings,
+  type ProjectlensSettings,
   type ModelOption,
   type ProviderId,
 } from "@/lib/settings"
@@ -85,7 +85,7 @@ function SectionCard({
 }
 
 export function SettingsView() {
-  const [settings, setSettings] = useState<CodeLensSettings>(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<ProjectlensSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
@@ -124,7 +124,7 @@ export function SettingsView() {
     setSaved(false)
   }
 
-  function patch(p: Partial<CodeLensSettings>) {
+  function patch(p: Partial<ProjectlensSettings>) {
     setSettings((s) => ({ ...s, ...p }))
     setSaved(false)
   }
@@ -176,7 +176,7 @@ export function SettingsView() {
           <div className="flex flex-col divide-y divide-border">
             <ToggleRow
               label="Enable AI security audit"
-              hint="When off, CodeLens runs lint, types, and the dependency audit only."
+              hint="When off, Projectlens runs lint, types, and the dependency audit only."
               checked={settings.aiEnabled}
               onChange={(v) => patch({ aiEnabled: v })}
             />
@@ -286,7 +286,7 @@ export function SettingsView() {
         <SectionCard
           icon={KeyRound}
           title="API key"
-          desc="Stored locally in your browser and written to .codelens.json for the CLI. Never sent anywhere else."
+          desc="Stored locally in your browser and written to .projectlens.json for the CLI. Never sent anywhere else."
         >
           {provider.needsKey ? (
             <KeyInput
@@ -318,7 +318,7 @@ export function SettingsView() {
             />
             <ToggleRow
               label="Persist chat history"
-              hint="Save conversations to .codelens/chats.json so they survive restarts. When off, chats are kept in memory only."
+              hint="Save conversations to .projectlens/chats.json so they survive restarts. When off, chats are kept in memory only."
               checked={settings.persistChats}
               onChange={(v) => patch({ persistChats: v })}
             />
@@ -420,7 +420,7 @@ export function SettingsView() {
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
                 <FileJson className="size-4 text-muted-foreground" />
-                <span className="font-mono text-xs font-semibold text-foreground">.codelens.json</span>
+                <span className="font-mono text-xs font-semibold text-foreground">.projectlens.json</span>
               </div>
               <span className="font-mono text-[10px] uppercase text-muted-foreground">preview</span>
             </div>
@@ -756,7 +756,7 @@ function DangerRow({
 /**
  * Data lifecycle controls. Lets the user reset preferences to defaults or
  * permanently delete stored data. Server-side artifacts (runs, insights, chats)
- * live in the CLI's `.codelens/` folder; preferences and the task board live in
+ * live in the CLI's `.projectlens/` folder; preferences and the task board live in
  * this browser's localStorage. A full wipe clears both and reloads.
  */
 function DataStorageSection({ onResetSettings }: { onResetSettings: () => void }) {
@@ -774,7 +774,7 @@ function DataStorageSection({ onResetSettings }: { onResetSettings: () => void }
       <DangerRow
         icon={History}
         title="Delete run history"
-        desc="Remove all saved runs, the latest snapshot, and project insights from .codelens/ on this machine."
+        desc="Remove all saved runs, the latest snapshot, and project insights from .projectlens/ on this machine."
         actionLabel="Delete runs"
         busyLabel="Deleting"
         tone="destructive"
@@ -787,7 +787,7 @@ function DataStorageSection({ onResetSettings }: { onResetSettings: () => void }
       <DangerRow
         icon={MessageSquare}
         title="Delete chat history"
-        desc="Erase every saved Ask-AI conversation from .codelens/chats.json."
+        desc="Erase every saved Ask-AI conversation from .projectlens/chats.json."
         actionLabel="Delete chats"
         busyLabel="Deleting"
         tone="destructive"

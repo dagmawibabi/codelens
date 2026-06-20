@@ -87,7 +87,7 @@ function RunDialogBody({ report, packageName, onClose }: { report: AnalysisRepor
             )}
             title={
               mode === "live"
-                ? "Streaming real results from the CodeLens CLI"
+                ? "Streaming real results from the Projectlens CLI"
                 : "No CLI backend connected — showing a simulated run"
             }
           >
@@ -173,7 +173,7 @@ function RunDialogBody({ report, packageName, onClose }: { report: AnalysisRepor
                   <span className="size-2.5 rounded-full border border-border" />
                   <span className="size-2.5 rounded-full border border-border" />
                 </div>
-                <span className="ml-1 font-mono text-xs text-muted-foreground">codelens — run log</span>
+                <span className="ml-1 font-mono text-xs text-muted-foreground">Projectlens — run log</span>
               </div>
               <span className="font-mono text-[10px] uppercase text-muted-foreground/60">{logs.length} lines</span>
             </div>

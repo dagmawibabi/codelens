@@ -35,8 +35,8 @@ async function withModelFallback<T>(call: (model: string) => Promise<T>): Promis
     return await call(primary)
   } catch (err) {
     if (!fallbackModel || fallbackModel === primary) throw err
-    if (process.env.CODELENS_DEBUG) {
-      console.error(`[codelens] model "${primary}" failed, falling back to "${fallbackModel}":`, err)
+    if (process.env.projectlens_DEBUG) {
+      console.error(`[Projectlens] model "${primary}" failed, falling back to "${fallbackModel}":`, err)
     }
     return await call(fallbackModel)
   }
@@ -253,7 +253,7 @@ const IGNORE_DIRS = new Set([
   'build',
   '.svelte-kit',
   'coverage',
-  '.codelens',
+  '.projectlens',
 ])
 
 const MAX_FILE_BYTES = 24_000
@@ -320,12 +320,12 @@ export async function runSecurityAudit(args: {
 
   const [findings, dependencies] = await Promise.all([
     auditCode(project, files).catch((err) => {
-      if (process.env.CODELENS_DEBUG) console.error('[codelens] code review failed:', err)
+      if (process.env.projectlens_DEBUG) console.error('[Projectlens] code review failed:', err)
       errors.push(`code review failed (${describeError(err)})`)
       return [] as SecurityFinding[]
     }),
     prioritizeDependencies(project, advisories).catch((err) => {
-      if (process.env.CODELENS_DEBUG) console.error('[codelens] dependency prioritization failed:', err)
+      if (process.env.projectlens_DEBUG) console.error('[Projectlens] dependency prioritization failed:', err)
       errors.push(`dependency prioritization failed (${describeError(err)})`)
       return advisories
     }),

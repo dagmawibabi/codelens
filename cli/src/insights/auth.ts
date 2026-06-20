@@ -581,7 +581,7 @@ async function collectGenericProvider(ctx: ScanContext, provider: ProviderDef): 
       label: "Analysis depth",
       value: "Provider-level",
       status: "info",
-      detail: "CodeLens surfaces provider detection and common pitfalls. Deep config introspection is available for Better Auth.",
+      detail: "Projectlens surfaces provider detection and common pitfalls. Deep config introspection is available for Better Auth.",
     },
   ]
 

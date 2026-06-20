@@ -16,7 +16,7 @@ export const IGNORE_DIRS = new Set([
   ".turbo",
   ".vercel",
   "coverage",
-  ".codelens",
+  ".projectlens",
   ".cache",
   "vendor",
 ])

@@ -100,10 +100,10 @@ export async function collectDocs(ctx: ScanContext): Promise<DocsResult> {
   ]
 
   const standards: DocStandard[] = [
-    buildStandard("quality", "Documentation Quality", "Is the project understandable to humans?", "CodeLens", "#", 0.4, qualityChecks),
+    buildStandard("quality", "Documentation Quality", "Is the project understandable to humans?", "Projectlens", "#", 0.4, qualityChecks),
     buildStandard("llmstxt", "llms.txt", "Can AI agents discover your docs?", "llmstxt.org", "https://llmstxt.org", 0.25, llmsChecks),
     buildStandard("vercel", "Web & SEO Readiness", "Is the app discoverable and deployable?", "Vercel", "https://vercel.com", 0.2, vercelChecks),
-    buildStandard("farming", "Inline API Docs", "Are exported APIs documented in code?", "CodeLens", "#", 0.15, farmingChecks),
+    buildStandard("farming", "Inline API Docs", "Are exported APIs documented in code?", "Projectlens", "#", 0.15, farmingChecks),
   ]
 
   const score = Math.round(standards.reduce((sum, s) => sum + s.score * s.weight, 0))

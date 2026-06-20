@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 /** Default chat model — the Vercel AI Gateway resolves this with zero config. */
 const DEFAULT_MODEL = "google/gemini-2.5-flash"
 
-const BASE_SYSTEM = `You are CodeLens Assistant, an expert software engineer embedded in a local
+const BASE_SYSTEM = `You are Projectlens Assistant, an expert software engineer embedded in a local
 code-analysis dashboard. You help developers understand and fix issues surfaced by the
 dashboard: lint errors, type errors, security findings, dependency advisories, environment
 and network problems, accessibility violations, performance and database issues, auth

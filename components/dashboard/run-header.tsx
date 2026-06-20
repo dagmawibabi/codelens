@@ -49,7 +49,7 @@ export function RunHeader({
           <div className="flex size-8 shrink-0 items-center justify-center rounded-sm border border-border text-foreground">
             <Terminal className="size-4" />
           </div>
-          <span className="font-mono text-sm font-semibold text-foreground">CodeLens</span>
+          <span className="font-mono text-sm font-semibold text-foreground">Projectlens</span>
           {aiEnabled && (
             <span className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase text-foreground">
               <Sparkles className="size-2.5" />

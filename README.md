@@ -1,33 +1,66 @@
-# codelens
+# Projectlens
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+Local lint, type-check & AI security dashboard for JS/TS projects. Run one command inside any project and Projectlens runs your **real** ESLint and TypeScript toolchain, audits your dependencies, runs an AI security review over your source, and opens a live dashboard at `localhost:4321`.
 
-## Built with v0
+| | |
+|---|---|
+| ![Overview](./assets/overview.png) | ![Lint](./assets/lint.png) |
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
-
-[Continue working on v0 →](https://v0.app/chat/projects/prj_B8xhaydCElYLRROqjrZR7RYvD3uA)
-
-## Getting Started
-
-First, run the development server:
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+npm install -g projectlens
+cd your-project
+projectlens
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **ESLint integration** — runs your real ESLint config, surfaces findings by severity with file and line info
+- **TypeScript checking** — spawns `tsc`, parses diagnostics with fix hints and error chains
+- **AI security audit** — reviews source files for vulnerabilities, secrets, and anti-patterns using configurable AI models
+- **Dependency advisories** — real CVE data with fix-version guidance and severity breakdown
+- **Live dashboard** — interactive localhost UI with charts, trends, and detailed per-run history
+- **Monorepo support** — autodetects pnpm/yarn/npm workspaces with per-package analysis and aggregate health
+- **CI mode** — `--ci` flag for non-zero exit on issues, `--json` for machine-readable output
+- **Export reports** — Markdown and JSON export from the dashboard
+- **Task manager** — built-in kanban board to track and triage findings
+- **Workspace overview** — compare health across packages in a monorepo with a card grid and package selector
 
-## Learn More
+## Screenshots
 
-To learn more, take a look at the following resources:
+| | |
+|---|---|
+| ![Overview](./assets/overview.png) | ![Lint](./assets/lint.png) |
+| ![Type](./assets/type.png) | ![Trend](./assets/trend.png) |
+| ![Dependencies](./assets/dependencies.png) | ![Statistics](./assets/statistics.png) |
+| ![Security](./assets/security.png) | ![Database](./assets/database.png) |
+| ![Git](./assets/git.png) | ![Task Manager](./assets/task-manager.png) |
+| ![Details](./assets/details.png) | ![Docs](./assets/docs.png) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+## CLI Usage
+
+```bash
+projectlens                 # run checks + open the dashboard
+projectlens --no-ai         # skip the AI security pass (lint + types only)
+projectlens --ci            # run once, print summary, exit non-zero on issues
+projectlens --json          # print the full report as JSON and exit
+projectlens --min-score 80  # in --ci mode, fail if health score < 80
+projectlens --dir /path     # analyze a specific directory
+```
+
+## AI Security Audit
+
+The AI pass needs a model key. Projectlens uses the Vercel AI Gateway:
+
+```bash
+export AI_GATEWAY_API_KEY=...   # recommended
+# or
+export OPENAI_API_KEY=...
+```
+
+Without a key, lint + type-check + dependency advisories still run; only the AI code review and prioritization are skipped.
+
+## License
+
+MIT

@@ -166,12 +166,12 @@ const TOOL_GROUPS: ToolGroup[] = [
   {
     icon: Boxes,
     title: "Engine libraries",
-    blurb: "The packages the CodeLens CLI itself is built on.",
+    blurb: "The packages the Projectlens CLI itself is built on.",
     tools: [
       { name: "commander", kind: "library", desc: "Parses CLI arguments and flags." },
       { name: "execa", kind: "library", desc: "Runs the lint, type, audit, and git processes." },
       { name: "ws", kind: "library", desc: "Streams live run progress to this dashboard over a WebSocket." },
-      { name: "zod", kind: "library", desc: "Validates the AI output schema and your .codelens.json config." },
+      { name: "zod", kind: "library", desc: "Validates the AI output schema and your .projectlens.json config." },
       { name: "ai (AI SDK 6)", kind: "library", desc: "Talks to models through the Vercel AI Gateway — no provider SDK needed." },
       { name: "open", kind: "library", desc: "Launches the dashboard in your browser after a run." },
     ],
@@ -229,7 +229,7 @@ export function HelpDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
-        aria-label="How to use CodeLens"
+        aria-label="How to use Projectlens"
         className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-border bg-card px-3 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <HelpCircle className="size-4" />
@@ -237,9 +237,9 @@ export function HelpDialog() {
       </DialogTrigger>
       <DialogContent className="max-h-[85svh] gap-0 overflow-y-auto sm:max-w-2xl">
         <DialogHeader className="border-b border-border pb-4">
-          <DialogTitle className="font-mono">Using the CodeLens CLI</DialogTitle>
+          <DialogTitle className="font-mono">Using the Projectlens CLI</DialogTitle>
           <DialogDescription>
-            CodeLens runs your real ESLint, TypeScript, and dependency-audit toolchain locally, then streams the
+            Projectlens runs your real ESLint, TypeScript, and dependency-audit toolchain locally, then streams the
             results into this dashboard.
           </DialogDescription>
         </DialogHeader>
@@ -260,29 +260,29 @@ export function HelpDialog() {
             <div className="flex flex-col gap-6">
               <Section icon={Download} title="1 · Install">
                 <p className="text-sm text-muted-foreground">Try it instantly with no install:</p>
-                <Cmd>npx codelens</Cmd>
+                <Cmd>npx projectlens</Cmd>
                 <p className="text-sm text-muted-foreground">
                   Or add it as a dev dependency to pin a version per project:
                 </p>
-                <Cmd>{`pnpm add -D codelens
-# then add to package.json scripts: "lens": "codelens"`}</Cmd>
+                <Cmd>{`pnpm add -D projectlens
+# then add to package.json scripts: "lens": "projectlens"`}</Cmd>
               </Section>
 
               <Section icon={KeyRound} title="2 · Configure the AI key">
                 <p className="text-sm text-muted-foreground">
                   Lint and type checks need no key. The AI security audit reads an API key from your environment or a
-                  local <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs">.codelens.json</code>:
+                  local <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs">.projectlens.json</code>:
                 </p>
                 <Cmd>export AI_GATEWAY_API_KEY=your_key_here</Cmd>
               </Section>
 
               <Section icon={Play} title="3 · Run it in your project">
                 <p className="text-sm text-muted-foreground">
-                  From the root of any JS/TS project (Next.js, SvelteKit, Vue, …). CodeLens auto-detects the framework
+                  From the root of any JS/TS project (Next.js, SvelteKit, Vue, …). Projectlens auto-detects the framework
                   and package manager, runs every check, and opens the dashboard at{" "}
                   <code className="rounded-sm bg-muted px-1 py-0.5 font-mono text-xs">localhost:4321</code>:
                 </p>
-                <Cmd>cd my-app &amp;&amp; codelens</Cmd>
+                <Cmd>cd my-app &amp;&amp; projectlens</Cmd>
               </Section>
 
               <Section icon={ListChecks} title="Flags">
@@ -300,7 +300,7 @@ export function HelpDialog() {
                 <p className="text-sm text-muted-foreground">
                   The same engine drops into GitHub Actions. Fail the build when quality regresses:
                 </p>
-                <Cmd>{`- run: npx codelens --ci --no-ai
+                <Cmd>{`- run: npx projectlens --ci --no-ai
 # exits non-zero past your configured thresholds`}</Cmd>
               </Section>
 

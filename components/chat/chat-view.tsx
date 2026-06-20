@@ -51,7 +51,7 @@ export function ChatView({
   }, [])
 
   // Changing the model here persists to settings so the choice sticks across
-  // sessions and is shared with the security audit (same `.codelens.json`).
+  // sessions and is shared with the security audit (same `.projectlens.json`).
   const handleModelChange = useCallback((id: string) => {
     setModel(id)
     saveSettings({ ...loadSettings(), model: id })
@@ -141,7 +141,7 @@ export function ChatView({
           ) : chats.length === 0 ? (
             <p className="px-2 py-3 text-xs leading-relaxed text-muted-foreground">
               No conversations yet. Saved chats appear here and persist in{" "}
-              <span className="font-mono">.codelens/chats.json</span>.
+              <span className="font-mono">.projectlens/chats.json</span>.
             </p>
           ) : (
             <ul className="flex flex-col gap-0.5">

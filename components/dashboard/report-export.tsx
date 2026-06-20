@@ -27,11 +27,11 @@ export function ReportExport({
   const stamp = new Date().toISOString().slice(0, 10)
 
   function exportMarkdown() {
-    downloadFile(`codelens-${slug}-${stamp}.md`, buildMarkdownReport(report, insights), "text/markdown")
+    downloadFile(`Projectlens-${slug}-${stamp}.md`, buildMarkdownReport(report, insights), "text/markdown")
   }
 
   function exportJson() {
-    downloadFile(`codelens-${slug}-${stamp}.json`, buildJsonReport(report, insights), "application/json")
+    downloadFile(`Projectlens-${slug}-${stamp}.json`, buildJsonReport(report, insights), "application/json")
   }
 
   async function copyMarkdown() {

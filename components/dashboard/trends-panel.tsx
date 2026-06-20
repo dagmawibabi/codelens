@@ -35,7 +35,7 @@ export function TrendsPanel({ history, report }: { history: TrendPoint[]; report
         <div>
           <p className="text-sm font-medium text-foreground">No run history yet</p>
           <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">
-            CodeLens records a trend point after every analysis in <span className="font-mono">.codelens/history.json</span>.
+            Projectlens records a trend point after every analysis in <span className="font-mono">.projectlens/history.json</span>.
             Run checks a few times to watch your project&apos;s health evolve here.
           </p>
         </div>

@@ -1,7 +1,7 @@
 import type { UIMessage } from "ai"
 
 /**
- * A persisted Ask-AI conversation. Stored as plain JSON in `.codelens/chats.json`,
+ * A persisted Ask-AI conversation. Stored as plain JSON in `.projectlens/chats.json`,
  * the same folder the CLI writes run history/insights to, so chat history lives
  * alongside analysis runs and survives across sessions.
  */
