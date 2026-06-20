@@ -1,5 +1,5 @@
 {
-  "name": "codelens",
+  "name": "@dagmawibabi/codelens",
   "version": "0.1.0",
   "description": "Local lint, type-check & AI security dashboard for JS/TS projects",
   "type": "module",
