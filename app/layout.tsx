@@ -44,7 +44,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <TooltipProvider delay={200}>{children}</TooltipProvider>
         </ThemeProvider>
       </body>
