@@ -5,7 +5,7 @@ import { FlaskConical, ShieldCheck, ChevronRight, CheckCircle2, XCircle, MinusCi
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard } from "./insights"
-import { useInspector } from "./inspector"
+import { useInspector, TrackedBadge } from "./inspector"
 import { severityStyle } from "@/lib/severity"
 import { testToIssue } from "@/lib/issues"
 import type { TestsResult, TestFinding, TestSuite, CoverageFile } from "@/lib/project-insights"
@@ -66,46 +66,113 @@ function FindingRow({ finding }: { finding: TestFinding }) {
           {finding.line ? `:${finding.line}` : ""}
         </span>
       </div>
+      <TrackedBadge issue={testToIssue(finding)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )
 }
 
-function SuiteRow({ suite }: { suite: TestSuite }) {
+function SuiteRow({ suite, expanded, onToggle }: { suite: TestSuite; expanded: boolean; onToggle: () => void }) {
   const failed = suite.status === "failed"
+  const tests = suite.tests ?? []
+
   return (
-    <div className="flex items-center gap-3 border-t border-border p-4 first:border-t-0">
-      {failed ? (
-        <XCircle className="size-4 shrink-0 text-[color:var(--sev-critical)]" />
-      ) : (
-        <CheckCircle2 className="size-4 shrink-0 text-[color:var(--sev-ok)]" />
-      )}
-      <div className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-sm text-foreground">{suite.name}</span>
-        <span className="truncate font-mono text-[10px] text-muted-foreground">{suite.filePath}</span>
-      </div>
-      <div className="flex shrink-0 items-center gap-2 font-mono text-[10px] tabular-nums">
-        <span className="inline-flex items-center gap-1 text-[color:var(--sev-ok)]">
-          <CheckCircle2 className="size-3" />
-          {suite.passed}
-        </span>
-        {suite.failed > 0 && (
-          <span className="inline-flex items-center gap-1 text-[color:var(--sev-critical)]">
-            <XCircle className="size-3" />
-            {suite.failed}
+    <div className="border-t border-border first:border-t-0">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-secondary/40"
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="inline-flex size-4 shrink-0 items-center justify-center">
+            <ChevronRight className={cn("size-4 transition-transform", expanded && "rotate-90")} />
+          </div>
+          {failed ? (
+            <XCircle className="size-4 shrink-0 text-[color:var(--sev-critical)]" />
+          ) : (
+            <CheckCircle2 className="size-4 shrink-0 text-[color:var(--sev-ok)]" />
+          )}
+          <div className="min-w-0 flex-1">
+            <span className="block truncate font-mono text-sm text-foreground">{suite.name}</span>
+            <span className="truncate font-mono text-[10px] text-muted-foreground">{suite.filePath}</span>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 font-mono text-[10px] tabular-nums">
+          <span className="inline-flex items-center gap-1 text-[color:var(--sev-ok)]">
+            <CheckCircle2 className="size-3" />
+            {suite.passed}
           </span>
-        )}
-        {suite.skipped > 0 && (
+          {suite.failed > 0 && (
+            <span className="inline-flex items-center gap-1 text-[color:var(--sev-critical)]">
+              <XCircle className="size-3" />
+              {suite.failed}
+            </span>
+          )}
+          {suite.skipped > 0 && (
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+              <MinusCircle className="size-3" />
+              {suite.skipped}
+            </span>
+          )}
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <MinusCircle className="size-3" />
-            {suite.skipped}
+            <Clock className="size-3" />
+            {(suite.durationMs / 1000).toFixed(1)}s
           </span>
-        )}
-        <span className="inline-flex items-center gap-1 text-muted-foreground">
-          <Clock className="size-3" />
-          {(suite.durationMs / 1000).toFixed(1)}s
-        </span>
+        </div>
       </div>
+
+      {/* Expanded test details */}
+      {expanded && tests.length > 0 && (
+        <div className="border-t border-border/50 bg-secondary/20">
+          <div className="flex flex-col divide-y divide-border/50">
+            {tests.map((test) => (
+              <div key={test.name} className="flex flex-col gap-2 p-3 font-mono text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {test.status === "passed" ? (
+                      <CheckCircle2 className="size-3.5 shrink-0 text-[color:var(--sev-ok)]" />
+                    ) : test.status === "failed" ? (
+                      <XCircle className="size-3.5 shrink-0 text-[color:var(--sev-critical)]" />
+                    ) : (
+                      <MinusCircle className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className={cn("truncate font-medium", test.status === "failed" ? "text-foreground" : "text-muted-foreground")}>
+                      {test.name}
+                    </span>
+                  </div>
+                  {test.durationMs != null && (
+                    <span className="shrink-0 text-muted-foreground/70">
+                      {(test.durationMs / 1000).toFixed(2)}s
+                    </span>
+                  )}
+                </div>
+                {test.error && (
+                  <div className="ml-5 rounded-sm border border-[color:var(--sev-critical)]/20 bg-[color:var(--sev-critical)]/5 px-2 py-1.5 text-[10px]">
+                    <div className="font-semibold text-[color:var(--sev-critical)]">{test.error}</div>
+                  </div>
+                )}
+                {test.assertions && test.assertions.length > 0 && (
+                  <div className="ml-5 flex flex-col gap-1">
+                    {test.assertions.map((assert, i) => (
+                      <div key={i} className="flex items-start gap-2 text-muted-foreground/80">
+                        <span className="mt-0.5 inline-flex size-1.5 shrink-0 rounded-full bg-current" />
+                        <span className="truncate">{assert}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -132,6 +199,7 @@ function CoverageFileRow({ file }: { file: CoverageFile }) {
 
 export function TestsPanel({ tests }: { tests: TestsResult }) {
   const [view, setView] = useState<View>("findings")
+  const [expandedSuites, setExpandedSuites] = useState<Set<string>>(new Set())
 
   const findings = useMemo(
     () => [...tests.findings].sort((a, b) => severityStyle(b.severity).rank - severityStyle(a.severity).rank),
@@ -139,6 +207,13 @@ export function TestsPanel({ tests }: { tests: TestsResult }) {
   )
   const suites = useMemo(() => [...tests.suites].sort((a, b) => b.failed - a.failed || b.durationMs - a.durationMs), [tests.suites])
   const coverageFiles = useMemo(() => [...tests.files].sort((a, b) => a.lines - b.lines), [tests.files])
+
+  const toggleSuiteExpand = (suiteId: string) => {
+    const next = new Set(expandedSuites)
+    if (next.has(suiteId)) next.delete(suiteId)
+    else next.add(suiteId)
+    setExpandedSuites(next)
+  }
 
   const passRate = tests.counts.total ? Math.round((tests.counts.passed / tests.counts.total) * 100) : 0
 
@@ -244,7 +319,12 @@ export function TestsPanel({ tests }: { tests: TestsResult }) {
           {view === "suites" && (
             <Card className="gap-0 overflow-hidden py-0">
               {suites.map((s) => (
-                <SuiteRow key={s.id} suite={s} />
+                <SuiteRow
+                  key={s.id}
+                  suite={s}
+                  expanded={expandedSuites.has(s.id)}
+                  onToggle={() => toggleSuiteExpand(s.id)}
+                />
               ))}
             </Card>
           )}

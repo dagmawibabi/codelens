@@ -247,5 +247,23 @@ export interface TrendPoint {
   securityFindings: number
 }
 
-export type RunPhase = "detect" | "lint" | "types" | "deps" | "security"
+export type RunPhase = "detect" | "lint" | "types" | "deps" | "security" | "insights"
 export type PhaseStatus = "idle" | "running" | "done" | "skipped"
+
+/**
+ * Streaming events emitted by the CodeLens CLI over the `/ws` socket. Mirrors
+ * the `RunEvent` union in the CLI package (`cli/src/types.ts`). The dashboard
+ * consumes these to drive the live run view and refresh its data.
+ */
+export type RunEvent =
+  | {
+      type: "phase"
+      phase: RunPhase
+      status: "running" | "done" | "skipped"
+      project?: AnalysisReport["meta"]["project"]
+      lint?: LintResult
+      types?: TypeCheckResult
+      security?: SecurityResult
+    }
+  | { type: "report"; report: AnalysisReport }
+  | { type: "state"; state: { report: AnalysisReport; insights: unknown; history: TrendPoint[] } }

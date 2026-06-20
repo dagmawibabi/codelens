@@ -8,9 +8,12 @@ import type {
   GitIssue,
   GitBranch,
   GitCommit,
+  GitTag,
   GitRemoteInfo,
   CiWorkflow,
   CiStatus,
+  CiJob,
+  CiStep,
 } from "../types.js"
 
 const exec = promisify(execFile)
@@ -85,16 +88,42 @@ const CI_FILES: Array<{ glob: RegExp; provider: CiWorkflow["provider"] }> = [
   { glob: /^\.circleci\/config\.ya?ml$/, provider: "CircleCI" },
 ]
 
+/**
+ * Parse `git log` records that use unit-separator (\u001f) between fields and
+ * record-separator (\u001e) between commits, optionally followed by a
+ * --numstat block for per-file diff stats.
+ */
 function parseRecentCommits(out: string): GitCommit[] {
   const commits: GitCommit[] = []
-  for (const line of out.split("\n")) {
-    if (!line.trim()) continue
-    const [hash = "", message = "", author = "", iso = ""] = line.split("\u001f")
+  for (const record of out.split("\u001e")) {
+    if (!record.trim()) continue
+    const [meta, ...statLines] = record.split("\n")
+    const [hash = "", fullHash = "", subject = "", author = "", email = "", iso = "", body = ""] = meta.split("\u001f")
+    if (!hash) continue
+    const files: GitFileChange[] = []
+    let insertions = 0
+    let deletions = 0
+    for (const sl of statLines) {
+      const m = sl.match(/^(\d+|-)\t(\d+|-)\t(.+)$/)
+      if (!m) continue
+      const add = m[1] === "-" ? 0 : Number.parseInt(m[1], 10)
+      const del = m[2] === "-" ? 0 : Number.parseInt(m[2], 10)
+      insertions += add
+      deletions += del
+      files.push({ path: m[3], status: add > 0 && del === 0 ? "added" : del > 0 && add === 0 ? "deleted" : "modified" })
+    }
     commits.push({
       hash,
-      message: message || "(no message)",
+      fullHash: fullHash || undefined,
+      message: subject || "(no message)",
       author: author || "unknown",
+      email: email || undefined,
+      date: iso || undefined,
+      body: body.trim() || undefined,
       relative: iso ? relativeTime(iso) : "unknown",
+      files: files.length ? files.slice(0, 50) : undefined,
+      insertions: files.length ? insertions : undefined,
+      deletions: files.length ? deletions : undefined,
     })
   }
   return commits
@@ -104,7 +133,7 @@ function parseBranches(out: string, current: string): GitBranch[] {
   const branches: GitBranch[] = []
   for (const line of out.split("\n")) {
     if (!line.trim()) continue
-    const [name = "", head = "", upstream = "", rel = ""] = line.split("\u001f")
+    const [name = "", head = "", upstream = "", rel = "", tip = "", subject = "", author = ""] = line.split("\u001f")
     if (!name || name.endsWith("/HEAD")) continue
     const remote = name.includes("/") && /^(origin|upstream)\//.test(name)
     branches.push({
@@ -113,10 +142,31 @@ function parseBranches(out: string, current: string): GitBranch[] {
       remote,
       upstream: upstream || undefined,
       lastCommitRelative: rel || undefined,
+      tip: tip || undefined,
+      subject: subject || undefined,
+      author: author || undefined,
     })
   }
-  // De-dupe identical local/remote names while keeping both kinds.
   return branches.slice(0, 50)
+}
+
+function parseTags(out: string): GitTag[] {
+  const tags: GitTag[] = []
+  for (const line of out.split("\n")) {
+    if (!line.trim()) continue
+    const [name = "", commit = "", iso = "", type = "", subject = "", tagger = ""] = line.split("\u001f")
+    if (!name) continue
+    tags.push({
+      name,
+      commit: commit || undefined,
+      relative: iso ? relativeTime(iso) : undefined,
+      date: iso || undefined,
+      annotated: type === "tag",
+      message: subject || undefined,
+      tagger: tagger || undefined,
+    })
+  }
+  return tags.slice(0, 30)
 }
 
 function relativeTime(iso: string): string {
@@ -174,26 +224,43 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
     tagOut,
     ignoredOut,
     stashOut,
+    firstCommitOut,
+    trackedOut,
   ] = await Promise.all([
     git(root, ["rev-parse", "--abbrev-ref", "HEAD"]),
     git(root, ["status", "--porcelain"]),
-    // Recent commits on the current branch, newest first.
-    git(root, ["log", "-15", "--format=%h%x1f%s%x1f%an%x1f%aI"]),
+    // Recent commits with full metadata: hash, full hash, subject, author, email, date, body, then --numstat.
+    git(root, [
+      "log",
+      "-15",
+      "--format=%h%x1f%H%x1f%s%x1f%an%x1f%ae%x1f%aI%x1f%b%x1e",
+      "--numstat",
+    ]),
     git(root, ["remote", "get-url", "origin"]),
     git(root, ["rev-list", "--count", "HEAD"]),
     git(root, ["shortlog", "-sn", "--all", "--no-merges"]),
     git(root, ["symbolic-ref", "refs/remotes/origin/HEAD"]),
-    // All branches (local + remote) with upstream + tip date.
+    // All branches with tip commit info: name, HEAD marker, upstream, relative date, tip hash, subject, tip author.
     git(root, [
       "for-each-ref",
       "--sort=-committerdate",
-      "--format=%(refname:short)%1f%(HEAD)%1f%(upstream:short)%1f%(committerdate:relative)",
+      "--format=%(refname:short)%x1f%(HEAD)%x1f%(upstream:short)%x1f%(committerdate:relative)%x1f%(objectname:short)%x1f%(subject)%x1f%(authorname)",
       "refs/heads",
       "refs/remotes",
     ]),
-    git(root, ["tag", "--sort=-creatordate"]),
+    // Tags with full info: name, commit hash, creatordate, type, subject/annotation, tagger.
+    git(root, [
+      "tag",
+      "-l",
+      "--sort=-creatordate",
+      "--format=%(refname:short)%x1f%(objectname:short)%x1f%(creatordate:iso)%x1f%(object:objecttype)%x1f%(contents:subject)%x1f%(taggername)",
+    ]),
     git(root, ["ls-files", "--others", "--ignored", "--exclude-standard"]),
     git(root, ["stash", "list"]),
+    // First commit date for repository age.
+    git(root, ["log", "--diff-filter=A", "--follow", "-z", "--format=%aI", "--", "*"]),
+    // Count of tracked files.
+    git(root, ["ls-files", "--cached", "--format='%(path)'"]),
   ])
 
   const { changes, staged } = parseStatus(statusOut ?? "")
@@ -209,7 +276,8 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
   const defaultBranch = defaultRef?.split("/").pop() ?? "main"
   const branchName = branch ?? "HEAD"
   const branches = parseBranches(branchOut ?? "", branchName)
-  const tags = (tagOut ?? "").split("\n").map((t) => t.trim()).filter(Boolean).slice(0, 30)
+  const tags = (tagOut ?? "").split("\n").filter(Boolean).slice(0, 30)
+  const tagDetails = parseTags(tagOut ?? "")
   const ignoredAll = (ignoredOut ?? "").split("\n").map((l) => l.trim()).filter(Boolean)
   const ignored = { count: ignoredAll.length, samples: ignoredAll.slice(0, 12) }
   const stashes = (stashOut ?? "").split("\n").filter((l) => l.trim()).length
@@ -224,8 +292,21 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
     ahead = Number.isFinite(a) ? a : 0
   }
 
-  const contributors = (contribOut ?? "").split("\n").filter((l) => l.trim()).length || 1
+  const contributorLines = (contribOut ?? "").split("\n").filter((l) => l.trim())
+  const contributors = contributorLines.length || 1
   const totalCommits = Number.parseInt(countOut ?? "0", 10) || 0
+  const trackedFiles = (trackedOut ?? "").split("\n").filter(Boolean).length
+  const firstCommitDate = (firstCommitOut ?? "").split("\0").filter(Boolean).pop()
+  const firstCommitRelative = firstCommitDate ? relativeTime(firstCommitDate) : undefined
+  
+  // Parse top contributors from shortlog.
+  const topContributors = contributorLines
+    .slice(0, 5)
+    .map((line) => {
+      const [commits = "", name = ""] = line.trim().split(/\s+/).reverse()
+      return { name, commits: Number.parseInt(commits, 10) }
+    })
+    .filter((c) => !Number.isNaN(c.commits))
 
   const state: GitState = {
     branch: branchName,
@@ -243,12 +324,16 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
     recentCommits,
     branches,
     tags,
+    tagDetails,
     ignored,
     stashes,
     changes,
     staged,
     contributors,
     totalCommits,
+    firstCommitRelative,
+    trackedFiles,
+    topContributors: topContributors.length ? topContributors : undefined,
   }
 
   // --- Issues -------------------------------------------------------------

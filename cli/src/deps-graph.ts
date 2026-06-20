@@ -15,9 +15,25 @@ import type { ScanContext } from "./insights/scan.js"
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
 const MAX_GRAPH_NODES = 60
 
+/**
+ * Framework-provided virtual/alias import prefixes that are not real npm
+ * packages and must never be reported as "missing" dependencies. SvelteKit
+ * exposes `$app`, `$env`, `$lib`, `$service-worker` (and `$lib` is a
+ * user-configurable alias); Nuxt/Vite-style `~`/`@/` aliases are handled by
+ * the relative/alias checks below.
+ */
+function isVirtualAlias(spec: string): boolean {
+  // Any `$`-prefixed specifier is a SvelteKit alias / virtual module.
+  if (spec.startsWith("$")) return true
+  // Common path-alias roots that resolve to local source, not packages.
+  if (spec.startsWith("~/") || spec.startsWith("@/") || spec === "~" || spec === "@") return true
+  return false
+}
+
 /** Extract the top-level package name from an import specifier. */
 function packageOf(spec: string): string | null {
   if (spec.startsWith(".") || spec.startsWith("/")) return null
+  if (isVirtualAlias(spec)) return null
   if (spec.startsWith("@")) {
     const [scope, name] = spec.split("/")
     return scope && name ? `${scope}/${name}` : null

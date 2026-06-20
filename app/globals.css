@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Orientation variants used by the Tabs component (Base UI sets data-orientation). */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
 @theme inline {
   --font-sans: var(--font-geist-sans), 'Geist Fallback', system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono Fallback', monospace;
@@ -33,6 +37,7 @@
   --color-sev-medium: var(--sev-medium);
   --color-sev-low: var(--sev-low);
   --color-sev-info: var(--sev-info);
+  --color-sev-warn: var(--sev-warn);
   --color-sev-ok: var(--sev-ok);
 
   --color-chart-1: var(--chart-1);
@@ -86,6 +91,7 @@
   --sev-medium: oklch(0.45 0 0);
   --sev-low: oklch(0.58 0 0);
   --sev-info: oklch(0.66 0 0);
+  --sev-warn: oklch(0.45 0 0);
   --sev-ok: oklch(0.22 0 0);
 
   --chart-1: oklch(0.15 0 0);
@@ -137,6 +143,7 @@
   --sev-medium: oklch(0.64 0 0);
   --sev-low: oklch(0.5 0 0);
   --sev-info: oklch(0.42 0 0);
+  --sev-warn: oklch(0.64 0 0);
   --sev-ok: oklch(0.9 0 0);
 
   --chart-1: oklch(0.95 0 0);
@@ -144,6 +151,64 @@
   --chart-3: oklch(0.6 0 0);
   --chart-4: oklch(0.45 0 0);
   --chart-5: oklch(0.32 0 0);
+}
+
+/*
+ * Optional color-accent mode (Settings → Appearance). Opt-in via the `accents`
+ * class on <html>. Keeps the monochrome canvas (background / foreground /
+ * borders) but layers subtle semantic hues onto severity tags, charts, accents,
+ * hover backgrounds and focus rings. Every token is mirrored in the .dark.accents
+ * block so dark mode stays correct. (display-only preference)
+ */
+.accents {
+  /* Cohesive blue brand accent for primary actions, hovers, and focus */
+  --primary: oklch(0.52 0.15 250);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.52 0.15 250);
+  --accent: oklch(0.95 0.03 250);
+  --accent-foreground: oklch(0.34 0.1 250);
+  --secondary: oklch(0.95 0.02 250);
+  --secondary-foreground: oklch(0.3 0.05 250);
+
+  /* Severity → semantic hues (red → green) */
+  --sev-critical: oklch(0.55 0.2 25);
+  --sev-high: oklch(0.62 0.18 45);
+  --sev-medium: oklch(0.68 0.14 75);
+  --sev-low: oklch(0.6 0.13 240);
+  --sev-info: oklch(0.62 0.06 250);
+  --sev-warn: oklch(0.68 0.14 75);
+  --sev-ok: oklch(0.58 0.14 150);
+
+  /* Multi-hue chart palette */
+  --chart-1: oklch(0.55 0.16 250);
+  --chart-2: oklch(0.58 0.14 150);
+  --chart-3: oklch(0.68 0.14 75);
+  --chart-4: oklch(0.62 0.18 45);
+  --chart-5: oklch(0.55 0.2 25);
+}
+
+.dark.accents {
+  --primary: oklch(0.64 0.16 250);
+  --primary-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.64 0.16 250);
+  --accent: oklch(0.23 0.04 255);
+  --accent-foreground: oklch(0.9 0.04 250);
+  --secondary: oklch(0.2 0.03 255);
+  --secondary-foreground: oklch(0.92 0.03 250);
+
+  --sev-critical: oklch(0.68 0.2 25);
+  --sev-high: oklch(0.73 0.17 50);
+  --sev-medium: oklch(0.8 0.14 85);
+  --sev-low: oklch(0.7 0.13 240);
+  --sev-info: oklch(0.7 0.06 250);
+  --sev-warn: oklch(0.8 0.14 85);
+  --sev-ok: oklch(0.72 0.15 152);
+
+  --chart-1: oklch(0.68 0.16 250);
+  --chart-2: oklch(0.72 0.15 152);
+  --chart-3: oklch(0.8 0.14 85);
+  --chart-4: oklch(0.73 0.17 50);
+  --chart-5: oklch(0.68 0.2 25);
 }
 
 @layer base {

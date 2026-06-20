@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   LayoutDashboard,
   FileText,
   Braces,
   ShieldAlert,
+  ShieldCheck,
   Package,
   Database,
   KeyRound,
@@ -20,6 +21,11 @@ import {
   Terminal,
   Sparkles,
   Settings,
+  MessageSquare,
+  Webhook,
+  Route,
+  LineChart,
+  ClipboardList,
 } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -34,11 +40,15 @@ import {
 } from "@/components/ui/select"
 import { RunHeader } from "./run-header"
 import { OverviewPanel } from "./overview-panel"
+import { TrendsPanel } from "./trends-panel"
+import { TasksPanel } from "./tasks-panel"
 import { LintPanel } from "./lint-panel"
 import { TypesPanel } from "./types-panel"
 import { SecurityPanel } from "./security-panel"
 import { DependenciesPanel } from "./dependencies-panel"
 import { DatabasePanel } from "./database-panel"
+import { ApiPanel } from "./api-panel"
+import { AuthPanel } from "./auth-panel"
 import { EnvPanel } from "./env-panel"
 import { NetworkPanel } from "./network-panel"
 import { GitPanel } from "./git-panel"
@@ -51,9 +61,14 @@ import { InspectorProvider } from "./inspector"
 import { CommandPalette, type TabDef } from "./command-palette"
 import { EmptyState } from "./empty-state"
 import { SettingsView } from "@/components/settings/settings-view"
+import { ChatView } from "@/components/chat/chat-view"
+import { ApiReference } from "./api-reference"
 import { RunDialog } from "@/components/run/run-dialog"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
+import type { ChatSeed } from "@/lib/chat-types"
+import { loadSettings } from "@/lib/settings"
+import { useOpenTaskCount } from "@/lib/tasks"
 import { cn } from "@/lib/utils"
 
 interface NavGroup {
@@ -61,48 +76,62 @@ interface NavGroup {
   items: TabDef[]
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  { items: [{ value: "overview", label: "Overview", icon: LayoutDashboard }] },
-  {
-    label: "Code Quality",
-    items: [
-      { value: "lint", label: "Lint", icon: FileText },
-      { value: "types", label: "Types", icon: Braces },
-      { value: "tests", label: "Tests", icon: FlaskConical },
-    ],
-  },
-  {
-    label: "Security",
-    items: [
-      { value: "security", label: "Security", icon: ShieldAlert },
-      { value: "deps", label: "Dependencies", icon: Package },
-      { value: "env", label: "Environment", icon: KeyRound },
-      { value: "network", label: "Network", icon: Globe },
-    ],
-  },
-  {
-    label: "Experience",
-    items: [
-      { value: "performance", label: "Performance", icon: Gauge },
-      { value: "accessibility", label: "Accessibility", icon: Accessibility },
-    ],
-  },
-  {
-    label: "Project",
-    items: [
-      { value: "setup", label: "Setup", icon: Settings2 },
-      { value: "database", label: "Database", icon: Database },
-      { value: "git", label: "Git & CI/CD", icon: GitBranch },
-      { value: "docs", label: "Docs", icon: BookOpen },
-    ],
-  },
-]
-
-/** Flat list of all tabs, in nav order, for the palette and shortcuts. */
-const TABS: TabDef[] = NAV_GROUPS.flatMap((g) => g.items)
+/**
+ * Builds the sidebar navigation. The Auth tab is only included when the project
+ * actually uses Better Auth, so unrelated projects don't get an empty section.
+ */
+function buildNavGroups(authPresent: boolean, apiPresent: boolean): NavGroup[] {
+  return [
+    {
+      items: [
+        { value: "overview", label: "Overview", icon: LayoutDashboard },
+        { value: "trends", label: "Trends", icon: LineChart },
+        { value: "tasks", label: "Task Manager", icon: ClipboardList },
+      ],
+    },
+    {
+      label: "Code Quality",
+      items: [
+        { value: "lint", label: "Lint", icon: FileText },
+        { value: "types", label: "Types", icon: Braces },
+        { value: "tests", label: "Tests", icon: FlaskConical },
+      ],
+    },
+    {
+      label: "Security",
+      items: [
+        { value: "security", label: "Security", icon: ShieldAlert },
+        { value: "deps", label: "Dependencies", icon: Package },
+        { value: "env", label: "Environment", icon: KeyRound },
+        { value: "network", label: "Network", icon: Globe },
+        ...(apiPresent ? [{ value: "api-surface", label: "API Surface", icon: Route } as TabDef] : []),
+        ...(authPresent ? [{ value: "auth", label: "Auth", icon: ShieldCheck } as TabDef] : []),
+      ],
+    },
+    {
+      label: "Experience",
+      items: [
+        { value: "performance", label: "Performance", icon: Gauge },
+        { value: "accessibility", label: "Accessibility", icon: Accessibility },
+      ],
+    },
+    {
+      label: "Project",
+      items: [
+        { value: "setup", label: "Setup", icon: Settings2 },
+        { value: "database", label: "Database", icon: Database },
+        { value: "git", label: "Git & CI/CD", icon: GitBranch },
+        { value: "docs", label: "Docs", icon: BookOpen },
+        { value: "api", label: "API Reference", icon: Webhook },
+      ],
+    },
+  ]
+}
 
 /** Settings lives outside the analysis nav but behaves like any other tab. */
 const SETTINGS_TAB: TabDef = { value: "settings", label: "Settings", icon: Settings }
+/** AI Chat also lives in the pinned footer, above Settings. */
+const CHAT_TAB: TabDef = { value: "chat", label: "AI Chat", icon: MessageSquare }
 
 export function Dashboard({
   report,
@@ -127,7 +156,39 @@ export function Dashboard({
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
 
+  // "Ask AI" handoff: a detail sheet seeds a new chat and jumps to the chat tab.
+  const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null)
+  const [chatSeedNonce, setChatSeedNonce] = useState<number | undefined>(undefined)
+  const handleAskAI = useCallback((seed: ChatSeed) => {
+    setChatSeed(seed)
+    setChatSeedNonce((n) => (n ?? 0) + 1)
+    setTab("chat")
+  }, [])
+
+  // The AI chat assistant can be turned off in Settings. Default on, then sync
+  // from the locally-persisted settings after mount.
+  const [chatEnabled, setChatEnabled] = useState(true)
+  useEffect(() => {
+    setChatEnabled(loadSettings().chatEnabled)
+  }, [])
+  // If the assistant is disabled while its tab is active, fall back to overview.
+  useEffect(() => {
+    if (!chatEnabled && tab === "chat") setTab("overview")
+  }, [chatEnabled, tab])
+
+  // Auth + API Surface tabs are conditional on detection in the project.
+  const navGroups = useMemo(
+    () => buildNavGroups(insights.auth.present, insights.api.present),
+    [insights.auth.present, insights.api.present],
+  )
+  const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
+
+  // Open (not-done) tasks across the board — keeps the nav badge in sync as
+  // issues are tracked or completed from anywhere in the app.
+  const openTaskCount = useOpenTaskCount()
+
   const counts: Record<string, number> = {
+    tasks: openTaskCount,
     lint: lint.errorCount + lint.warningCount,
     types: types.diagnostics.length,
     tests: insights.tests.findings.length,
@@ -138,6 +199,8 @@ export function Dashboard({
     performance: insights.performance.findings.length,
     accessibility: insights.accessibility.violations.length,
     database: insights.database.findings.length,
+    "api-surface": insights.api.counts.findings,
+    auth: insights.auth.counts.findings,
     git: insights.git.issues.length + insights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
     docs: insights.docs.standards
       .flatMap((s) => s.checks)
@@ -146,7 +209,7 @@ export function Dashboard({
 
   const selectTab = useCallback((value: string) => setTab(value), [])
 
-  const activeTab = [...TABS, SETTINGS_TAB].find((t) => t.value === tab) ?? TABS[0]
+  const activeTab = [...tabs, CHAT_TAB, SETTINGS_TAB].find((t) => t.value === tab) ?? tabs[0]
 
   // Global keyboard shortcuts: Cmd/Ctrl+K opens search; number keys switch tabs.
   useEffect(() => {
@@ -171,19 +234,19 @@ export function Dashboard({
       const num = Number.parseInt(e.key, 10)
       if (!Number.isNaN(num)) {
         const idx = num === 0 ? 9 : num - 1
-        if (TABS[idx]) {
+        if (tabs[idx]) {
           e.preventDefault()
-          setTab(TABS[idx].value)
+          setTab(tabs[idx].value)
         }
       }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [tabs])
 
   return (
     <main className="min-h-svh bg-background">
-      <InspectorProvider projectRoot={report.meta.project.root}>
+      <InspectorProvider projectRoot={report.meta.project.root} onAskAI={chatEnabled ? handleAskAI : undefined}>
         <div className="flex">
           {/* Desktop sidebar — sticky, full viewport height */}
           <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-border bg-card lg:flex">
@@ -205,7 +268,7 @@ export function Dashboard({
 
             {/* Scrollable nav */}
             <nav aria-label="Analysis sections" className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
-              {NAV_GROUPS.map((group, i) => (
+              {navGroups.map((group, i) => (
                 <div key={group.label ?? `group-${i}`} className="flex flex-col gap-0.5">
                   {group.label && (
                     <p className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -241,8 +304,25 @@ export function Dashboard({
               ))}
             </nav>
 
-            {/* Settings pinned to the bottom of the rail — behaves like a tab */}
+            {/* AI Chat + Settings pinned to the bottom of the rail — behave like tabs */}
             <div className="flex shrink-0 flex-col gap-1 border-t border-border p-3">
+              {chatEnabled && (
+                <button
+                  type="button"
+                  aria-current={tab === "chat" ? "page" : undefined}
+                  onClick={() => setTab("chat")}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm transition-colors",
+                    tab === "chat"
+                      ? "bg-secondary font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground",
+                  )}
+                >
+                  <MessageSquare className="size-4 shrink-0" />
+                  <span className="flex-1 text-left">AI Chat</span>
+                  <Sparkles className="size-3 shrink-0 text-muted-foreground" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-current={tab === "settings" ? "page" : undefined}
@@ -274,7 +354,7 @@ export function Dashboard({
               onRunChecks={() => setRunOpen(true)}
             />
 
-            {empty && tab !== "settings" ? (
+            {empty && tab !== "settings" && tab !== "chat" ? (
               <EmptyState
                 onRunChecks={() => setRunOpen(true)}
                 onLoadDemo={() => onToggleDemo?.(true)}
@@ -291,7 +371,7 @@ export function Dashboard({
                     </span>
                   </SelectTrigger>
                   <SelectContent>
-                    {NAV_GROUPS.map((group, i) => (
+                    {navGroups.map((group, i) => (
                       <SelectGroup key={group.label ?? `group-${i}`}>
                         {group.label && <SelectLabel>{group.label}</SelectLabel>}
                         {group.items.map((item) => (
@@ -309,6 +389,14 @@ export function Dashboard({
                     ))}
                     <SelectGroup>
                       <SelectLabel>Configuration</SelectLabel>
+                      {chatEnabled && (
+                        <SelectItem value={CHAT_TAB.value}>
+                          <span className="flex items-center gap-2">
+                            <CHAT_TAB.icon className="size-4 text-muted-foreground" />
+                            {CHAT_TAB.label}
+                          </span>
+                        </SelectItem>
+                      )}
                       <SelectItem value={SETTINGS_TAB.value}>
                         <span className="flex items-center gap-2">
                           <SETTINGS_TAB.icon className="size-4 text-muted-foreground" />
@@ -331,7 +419,13 @@ export function Dashboard({
               {/* Content */}
               <div className="min-w-0">
                 <TabsContent value="overview">
-                  <OverviewPanel report={report} history={history} insights={insights} />
+                  <OverviewPanel report={report} history={history} insights={insights} onSelectTab={selectTab} />
+                </TabsContent>
+                <TabsContent value="trends">
+                  <TrendsPanel history={history} report={report} />
+                </TabsContent>
+                <TabsContent value="tasks">
+                  <TasksPanel />
                 </TabsContent>
                 <TabsContent value="lint">
                   <LintPanel lint={lint} />
@@ -363,6 +457,16 @@ export function Dashboard({
                 <TabsContent value="database">
                   <DatabasePanel database={insights.database} />
                 </TabsContent>
+                {insights.api.present && (
+                  <TabsContent value="api-surface">
+                    <ApiPanel api={insights.api} />
+                  </TabsContent>
+                )}
+                {insights.auth.present && (
+                  <TabsContent value="auth">
+                    <AuthPanel auth={insights.auth} />
+                  </TabsContent>
+                )}
                 <TabsContent value="git">
                   <GitPanel git={insights.git} />
                 </TabsContent>
@@ -371,6 +475,12 @@ export function Dashboard({
                 </TabsContent>
                 <TabsContent value="docs">
                   <DocsPanel docs={insights.docs} />
+                </TabsContent>
+                <TabsContent value="api">
+                  <ApiReference />
+                </TabsContent>
+                <TabsContent value="chat" className="-mx-4 -my-6 sm:-mx-6">
+                  <ChatView pendingSeed={chatSeed} seedNonce={chatSeedNonce} />
                 </TabsContent>
                 <TabsContent value="settings">
                   <SettingsView />
@@ -384,7 +494,7 @@ export function Dashboard({
         <CommandPalette
           open={paletteOpen}
           onOpenChange={setPaletteOpen}
-          tabs={TABS}
+          tabs={tabs}
           onSelectTab={selectTab}
           onRunChecks={() => setRunOpen(true)}
           report={report}

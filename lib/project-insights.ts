@@ -36,6 +36,12 @@ export interface EnvVariable {
   note: string
   /** Masked sample value when known. */
   sample?: string
+  /** Raw, unmasked value parsed from the local env file. Read only from the
+   *  developer's own machine and revealed behind an explicit toggle. */
+  value?: string
+  /** Per-file values so the UI can compare .env.local vs .env.example, etc.
+   *  `value` is `null` when the file declares the key with no value. */
+  values?: { file: string; value: string | null }[]
 }
 
 export interface EnvResult {
@@ -107,6 +113,21 @@ export interface GitCommit {
   message: string
   author: string
   relative: string
+  /** Full 40-char SHA, when known. */
+  fullHash?: string
+  /** Author email. */
+  email?: string
+  /** Absolute commit date (ISO) for tooltips. */
+  date?: string
+  /** Extended commit body / description below the subject line. */
+  body?: string
+  /** Files touched by this commit. */
+  files?: GitFileChange[]
+  /** Diff stats. */
+  insertions?: number
+  deletions?: number
+  /** Refs pointing at this commit (tags, branches). */
+  refs?: string[]
 }
 
 export interface GitBranch {
@@ -118,6 +139,34 @@ export interface GitBranch {
   upstream?: string
   /** Relative time of the branch tip's last commit. */
   lastCommitRelative?: string
+  /** Commits ahead/behind the default branch. */
+  ahead?: number
+  behind?: number
+  /** Short hash of the branch tip. */
+  tip?: string
+  /** Subject line of the tip commit. */
+  subject?: string
+  /** Author of the tip commit. */
+  author?: string
+  /** Whether the branch has been merged into the default branch. */
+  merged?: boolean
+}
+
+/** Annotated or lightweight tag with metadata for the detail sheet. */
+export interface GitTag {
+  name: string
+  /** Short hash of the tagged commit. */
+  commit?: string
+  /** Relative time of the tag / tagged commit. */
+  relative?: string
+  /** Absolute date (ISO). */
+  date?: string
+  /** Annotation message for annotated tags. */
+  message?: string
+  /** Tagger / author name. */
+  tagger?: string
+  /** True for annotated tags (vs lightweight). */
+  annotated?: boolean
 }
 
 /** Parsed from the `origin` remote URL; powers the repo link in the UI. */
@@ -145,6 +194,8 @@ export interface GitState {
   branches: GitBranch[]
   /** Lightweight tags, newest first. */
   tags: string[]
+  /** Rich tag metadata, when available (parallels `tags`). */
+  tagDetails?: GitTag[]
   /** Git-ignored files: total count plus a sample for display. */
   ignored: { count: number; samples: string[] }
   /** Number of stash entries. */
@@ -153,14 +204,41 @@ export interface GitState {
   staged: number
   contributors: number
   totalCommits: number
+  /** Relative time of the repository's first commit. */
+  firstCommitRelative?: string
+  /** Number of files in the working tree (tracked). */
+  trackedFiles?: number
+  /** Top contributors by commit count. */
+  topContributors?: { name: string; commits: number }[]
 }
 
 export type CiStatus = "passing" | "failing" | "no-runs" | "disabled"
+
+/** A single step within a CI job. */
+export interface CiStep {
+  name: string
+  /** Marketplace action used (e.g. actions/checkout@v4). */
+  uses?: string
+  /** Inline shell command. */
+  run?: string
+  /** `if:` condition guarding the step. */
+  condition?: string
+  /** Static diagnostics found for this step. */
+  diagnostics?: string[]
+}
 
 export interface CiJob {
   name: string
   status: CiStatus
   durationMs?: number
+  /** Runner image (e.g. ubuntu-latest). */
+  runsOn?: string
+  /** Jobs this one depends on. */
+  needs?: string[]
+  /** `if:` condition guarding the whole job. */
+  condition?: string
+  /** Parsed steps. */
+  steps?: CiStep[]
 }
 
 export interface CiWorkflow {
@@ -172,6 +250,22 @@ export interface CiWorkflow {
   status: CiStatus
   jobs: CiJob[]
   issues: GitIssue[]
+  /** Concurrency group config, if declared. */
+  concurrency?: string
+  /** Declared top-level permissions. */
+  permissions?: string[]
+  /** Env var names referenced at the workflow level. */
+  env?: string[]
+  /** Cron schedules, if any. */
+  schedules?: string[]
+  /** How to run / diagnose this workflow locally. */
+  diagnosis?: {
+    /** Suggested local command (e.g. `act -j build`). */
+    localCommand?: string
+    /** Whether a local runner (act) is applicable. */
+    runnable: boolean
+    notes: string[]
+  }
 }
 
 export interface GitResult {
@@ -326,6 +420,9 @@ export type DbIssueKind =
   | "full-scan"
   | "no-validation"
 
+/** How the datastore was detected, for transparency in the UI. */
+export type DbDetectionSource = "dependency" | "env" | "connection-string" | "schema-file" | "config"
+
 export interface DbConnection {
   id: string
   engine: DbEngine
@@ -344,6 +441,47 @@ export interface DbConnection {
   collections: number
   /** Where the client is instantiated. */
   filePath: string
+  /** How this datastore was identified. */
+  detectedVia?: DbDetectionSource
+  /** Detected scheme of the connection string (e.g. mongodb+srv, postgres). */
+  scheme?: string
+  /** Source of the schema (e.g. Prisma schema, Drizzle, mongoose models). */
+  schemaSource?: string
+}
+
+export type DbColumnFlag = "pk" | "fk" | "unique" | "index" | "nullable" | "default"
+
+export interface DbColumn {
+  name: string
+  /** SQL type or inferred document field type. */
+  type: string
+  flags: DbColumnFlag[]
+  /** Referenced table.column for foreign keys. */
+  references?: string
+  note?: string
+}
+
+export interface DbIndexInfo {
+  name: string
+  columns: string[]
+  unique: boolean
+}
+
+/** A table (SQL) or collection (document store). */
+export interface DbTable {
+  name: string
+  /** Which connection this belongs to. */
+  connectionId: string
+  /** "table" for SQL, "collection" for document stores. */
+  kind: "table" | "collection" | "view"
+  columns: DbColumn[]
+  indexes: DbIndexInfo[]
+  /** Approximate row/document count. */
+  rowCount: number
+  /** On-disk size estimate. */
+  sizeKb?: number
+  /** Where the model/table is defined. */
+  filePath?: string
 }
 
 export interface DbFinding {
@@ -383,6 +521,8 @@ export interface DbResult {
   findings: DbFinding[]
   /** Notable / slowest observed queries. */
   queries: DbQuery[]
+  /** Schema: tables/collections discovered across connections. */
+  tables?: DbTable[]
   counts: { connections: number; collections: number; findings: number; slowQueries: number }
 }
 
@@ -496,6 +636,23 @@ export interface PerfResult {
 
 export type TestStatus = "passed" | "failed" | "skipped"
 
+/** An individual test case ("it"/"test") within a suite. */
+export interface TestCase {
+  name: string
+  /** Full nested name including describe blocks. */
+  fullName?: string
+  status: TestStatus
+  durationMs?: number
+  line?: number
+  /** Assertions / expectations the test makes (parsed from expect()). */
+  assertions?: string[]
+  /** Failure message for failed tests. */
+  error?: string
+  /** Expected vs received for a failed assertion. */
+  expected?: string
+  actual?: string
+}
+
 export interface TestSuite {
   id: string
   name: string
@@ -506,6 +663,8 @@ export interface TestSuite {
   skipped: number
   durationMs: number
   status: TestStatus
+  /** Individual test cases, when collected. */
+  tests?: TestCase[]
 }
 
 export type TestIssueKind = "failing" | "flaky" | "slow" | "uncovered" | "no-tests"
@@ -550,6 +709,194 @@ export interface TestsResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* Auth (Better Auth)                                                  */
+/* ------------------------------------------------------------------ */
+
+export type AuthStatus = "ok" | "warn" | "fail" | "info"
+
+export type AuthPluginCategory =
+  | "two-factor"
+  | "passwordless"
+  | "social"
+  | "authorization"
+  | "session"
+  | "api"
+  | "enterprise"
+  | "integration"
+  | "utility"
+  | "other"
+
+export interface AuthMethod {
+  id: string
+  label: string
+  kind: "credential" | "social" | "passwordless"
+  enabled: boolean
+  detail: string
+  providers?: string[]
+}
+
+export interface AuthPlugin {
+  id: string
+  name: string
+  category: AuthPluginCategory
+  side: "server" | "client" | "both"
+  detectedServer: boolean
+  detectedClient: boolean
+  needsClient: boolean
+  clientMissing: boolean
+  description: string
+  docsUrl: string
+  addsTables?: string[]
+}
+
+export interface AuthConfigItem {
+  key: string
+  label: string
+  value: string
+  status: AuthStatus
+  detail?: string
+  recommendation?: string
+}
+
+export interface AuthFinding {
+  id: string
+  severity: Severity
+  title: string
+  detail: string
+  recommendation: string
+  filePath?: string
+  line?: number
+  docsUrl?: string
+}
+
+export type AuthProviderId =
+  | "better-auth"
+  | "clerk"
+  | "next-auth"
+  | "supabase"
+  | "lucia"
+  | "firebase"
+  | "auth0"
+  | "passport"
+
+export interface AuthProviderInfo {
+  id: AuthProviderId
+  /** Display name, e.g. "Clerk", "Auth.js (NextAuth)". */
+  name: string
+  /** npm package the detection matched on. */
+  packageName: string
+  docsUrl: string
+  /**
+   * Whether CodeLens can introspect this provider's config in depth
+   * (methods, plugins, session). Only Better Auth has full support today;
+   * others are detected and surfaced with provider-level guidance.
+   */
+  deepSupport: boolean
+}
+
+export interface AuthResult {
+  present: boolean
+  /** Which auth library is in use. Undefined only when `present` is false. */
+  provider?: AuthProviderInfo
+  version?: string
+  integration?: string
+  configPath?: string
+  clientPath?: string
+  databaseAdapter?: { name: string; detail: string }
+  methods: AuthMethod[]
+  socialProviders: string[]
+  plugins: AuthPlugin[]
+  config: AuthConfigItem[]
+  session: { expiresIn?: number; updateAge?: number; cookieCache?: boolean }
+  findings: AuthFinding[]
+  counts: { plugins: number; methods: number; providers: number; findings: number }
+}
+
+/* ------------------------------------------------------------------ */
+/* API Surface Map                                                     */
+/* ------------------------------------------------------------------ */
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "ALL"
+
+export type ApiRouteKind =
+  | "next-app" // app/**/route.ts
+  | "next-pages" // pages/api/**
+  | "next-action" // "use server" server actions
+  | "express" // app.get(...) / router.post(...)
+  | "hono" // app.get(...) on a Hono instance
+  | "fastify"
+  | "sveltekit" // +server.ts
+  | "nuxt" // server/api/**
+  | "other"
+
+export interface ApiEndpointFlags {
+  /** Reads the authenticated session/user. */
+  auth: boolean
+  /** Validates input (zod/yup/valibot/manual). */
+  validation: boolean
+  /** References a database/ORM call. */
+  database: boolean
+  /** Touches process.env directly. */
+  env: boolean
+  /** Returns/handles errors explicitly (try/catch or error response). */
+  errorHandling: boolean
+  /** Reads request body / params. */
+  inputs: boolean
+}
+
+export interface ApiEndpoint {
+  id: string
+  method: HttpMethod
+  /** Normalized route path, e.g. /api/users/[id]. */
+  path: string
+  kind: ApiRouteKind
+  filePath: string
+  line: number
+  /** Handler/export name when meaningful (e.g. "POST", action name). */
+  handler?: string
+  flags: ApiEndpointFlags
+  /** Static issues found around the handler. */
+  findings: ApiFinding[]
+  /** True when the route segment is dynamic ([id], :id, etc). */
+  dynamic: boolean
+}
+
+export interface ApiFinding {
+  id: string
+  severity: Severity
+  kind: "no-auth" | "no-validation" | "no-error-handling" | "public-mutation" | "wildcard-method" | "hardcoded-secret"
+  title: string
+  detail: string
+  recommendation: string
+}
+
+export interface ApiGroup {
+  /** Top-level segment, e.g. "api", "auth", "(root)". */
+  segment: string
+  endpoints: ApiEndpoint[]
+}
+
+export interface ApiResult {
+  /** True when at least one server endpoint was detected. */
+  present: boolean
+  /** Dominant framework/style for the surface. */
+  style?: string
+  endpoints: ApiEndpoint[]
+  groups: ApiGroup[]
+  /** Distribution of endpoints by HTTP method. */
+  methodCounts: { method: HttpMethod; count: number }[]
+  findings: ApiFinding[]
+  counts: {
+    endpoints: number
+    dynamic: number
+    mutations: number
+    protected: number
+    validated: number
+    findings: number
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Aggregate                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -560,6 +907,8 @@ export interface ProjectInsights {
   setup: SetupResult
   docs: DocsResult
   database: DbResult
+  auth: AuthResult
+  api: ApiResult
   accessibility: A11yResult
   performance: PerfResult
   tests: TestsResult
@@ -587,6 +936,11 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local", ".env.example"],
         note: "Server-only connection string. Correctly excluded from the client bundle.",
         sample: "postgres://••••@db.neon.tech/main",
+        value: "postgres://app:s3cr3t_pw@db.neon.tech/main?sslmode=require",
+        values: [
+          { file: ".env.local", value: "postgres://app:s3cr3t_pw@db.neon.tech/main?sslmode=require" },
+          { file: ".env.example", value: "postgres://app:YOUR_PASSWORD@db.neon.tech/main?sslmode=require" },
+        ],
       },
       {
         key: "STRIPE_SECRET_KEY",
@@ -597,6 +951,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local"],
         note: "Secret key is imported in a Client Component (price-tag.tsx). It will be inlined into the browser bundle and leak to every visitor.",
         sample: "sk_live_••••••••",
+        value: "sk_live_51Hx9aBcDeFgHiJkLmNoPqRsT",
       },
       {
         key: "NEXT_PUBLIC_API_URL",
@@ -607,6 +962,11 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local", ".env.example"],
         note: "Public client variable, correctly prefixed with NEXT_PUBLIC_.",
         sample: "https://api.storefront.dev",
+        value: "https://api.storefront.dev",
+        values: [
+          { file: ".env.local", value: "https://api.storefront.dev" },
+          { file: ".env.example", value: "https://api.storefront.dev" },
+        ],
       },
       {
         key: "REDIS_URL",
@@ -626,6 +986,11 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local"],
         note: "Used and defined locally but missing from .env.example, so new contributors won't know to set it.",
         sample: "https://••••@sentry.io/123",
+        value: "https://a1b2c3d4@o123456.ingest.sentry.io/4505123",
+        values: [
+          { file: ".env.local", value: "https://a1b2c3d4@o123456.ingest.sentry.io/4505123" },
+          { file: ".env.example", value: null },
+        ],
       },
       {
         key: "OPENAI_API_KEY",
@@ -636,6 +1001,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local", ".env.example"],
         note: "Server-only secret, used inside a Route Handler. Good.",
         sample: "sk-••••••••",
+        value: "sk-proj-AbC123XyZ456DeF789GhI",
       },
       {
         key: "NEXT_PUBLIC_GA_ID",
@@ -646,6 +1012,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local", ".env.example"],
         note: "Analytics id, safe to expose to the client.",
         sample: "G-XXXXXXX",
+        value: "G-7H9K2L4M8N",
       },
       {
         key: "LEGACY_TOKEN",
@@ -656,6 +1023,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local"],
         note: "Defined in .env.local but never referenced anywhere in the codebase. Safe to remove.",
         sample: "••••",
+        value: "legacy-tok-9920-unused",
       },
       {
         key: "SMTP_PASSWORD",
@@ -666,6 +1034,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local"],
         note: "Declared with an empty value. Email sending in lib/email.ts will fail silently.",
         sample: "(empty)",
+        value: "",
       },
       {
         key: "AUTH_SECRET",
@@ -676,6 +1045,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local", ".env.example"],
         note: "Session signing secret, server-only. Good.",
         sample: "••••••••",
+        value: "9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c",
       },
       {
         key: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -686,6 +1056,7 @@ export const projectInsights: ProjectInsights = {
         definedIn: [".env.local"],
         note: "Public anon key — safe to expose, but missing from .env.example.",
         sample: "eyJ••••",
+        value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo-anon-key",
       },
     ],
   },
@@ -824,22 +1195,76 @@ export const projectInsights: ProjectInsights = {
         relative: "2 hours ago",
       },
       recentCommits: [
-        { hash: "a1b2c3d", message: "wip: tweak price tag layout", author: "Jordan Lee", relative: "2 hours ago" },
-        { hash: "9f2a11c", message: "feat: redesign checkout summary", author: "Jordan Lee", relative: "5 hours ago" },
-        { hash: "7c4e0b2", message: "refactor: extract usePricing hook", author: "Sam Rivera", relative: "1 day ago" },
-        { hash: "3d9f8a1", message: "fix: cart total rounding error", author: "Priya Nair", relative: "2 days ago" },
-        { hash: "b50c7e4", message: "chore: bump next to 16.0.1", author: "Jordan Lee", relative: "3 days ago" },
-        { hash: "e1a2d3f", message: "test: add checkout e2e coverage", author: "Sam Rivera", relative: "4 days ago" },
+        {
+          hash: "a1b2c3d", fullHash: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+          message: "wip: tweak price tag layout", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "2 hours ago", date: "2026-06-19T08:12:00Z", refs: ["HEAD -> feat/checkout-redesign"],
+          body: "Adjust the discount badge so it aligns with the strikethrough price.\nStill WIP — needs the responsive breakpoint pass.",
+          insertions: 34, deletions: 12,
+          files: [
+            { path: "components/price-tag.tsx", status: "modified" },
+            { path: "app/checkout/page.tsx", status: "modified" },
+          ],
+        },
+        {
+          hash: "9f2a11c", fullHash: "9f2a11c0b1d2e3f405162738495a6b7c8d9e0f12",
+          message: "feat: redesign checkout summary", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "5 hours ago", date: "2026-06-19T05:40:00Z",
+          body: "New two-column summary with order totals on the right.",
+          insertions: 212, deletions: 48,
+          files: [
+            { path: "app/checkout/page.tsx", status: "modified" },
+            { path: "components/order-summary.tsx", status: "added" },
+            { path: "config/payments.ts", status: "modified" },
+          ],
+        },
+        {
+          hash: "7c4e0b2", fullHash: "7c4e0b2a3948576675849302a1b0c9d8e7f60514",
+          message: "refactor: extract usePricing hook", author: "Sam Rivera", email: "sam@acme.dev",
+          relative: "1 day ago", date: "2026-06-18T10:05:00Z", insertions: 88, deletions: 96,
+          files: [
+            { path: "hooks/use-pricing.ts", status: "added" },
+            { path: "components/price-tag.tsx", status: "modified" },
+          ],
+        },
+        {
+          hash: "3d9f8a1", fullHash: "3d9f8a1b2c3d4e5f60718293a4b5c6d7e8f90123",
+          message: "fix: cart total rounding error", author: "Priya Nair", email: "priya@acme.dev",
+          relative: "2 days ago", date: "2026-06-17T14:22:00Z", insertions: 9, deletions: 4,
+          body: "Round to cents before summing instead of after — fixes the off-by-one-cent totals reported in #482.",
+          files: [{ path: "lib/cart.ts", status: "modified" }],
+        },
+        {
+          hash: "b50c7e4", fullHash: "b50c7e4f5a6b7c8d9e0f1a2b3c4d5e6f70819203",
+          message: "chore: bump next to 16.0.1", author: "Jordan Lee", email: "jordan@acme.dev",
+          relative: "3 days ago", date: "2026-06-16T09:00:00Z", insertions: 14, deletions: 14,
+          files: [
+            { path: "package.json", status: "modified" },
+            { path: "pnpm-lock.yaml", status: "modified" },
+          ],
+        },
+        {
+          hash: "e1a2d3f", fullHash: "e1a2d3f4b5c6d7e8f90112233445566778899aab",
+          message: "test: add checkout e2e coverage", author: "Sam Rivera", email: "sam@acme.dev",
+          relative: "4 days ago", date: "2026-06-15T16:30:00Z", insertions: 156, deletions: 0,
+          files: [{ path: "e2e/checkout.spec.ts", status: "added" }],
+        },
       ],
       branches: [
-        { name: "feat/checkout-redesign", current: true, remote: false, upstream: "origin/feat/checkout-redesign", lastCommitRelative: "2 hours ago" },
-        { name: "main", current: false, remote: false, upstream: "origin/main", lastCommitRelative: "5 hours ago" },
-        { name: "fix/cart-rounding", current: false, remote: false, lastCommitRelative: "2 days ago" },
-        { name: "origin/main", current: false, remote: true, lastCommitRelative: "5 hours ago" },
-        { name: "origin/feat/checkout-redesign", current: false, remote: true, lastCommitRelative: "2 hours ago" },
-        { name: "origin/release/2.4", current: false, remote: true, lastCommitRelative: "3 weeks ago" },
+        { name: "feat/checkout-redesign", current: true, remote: false, upstream: "origin/feat/checkout-redesign", lastCommitRelative: "2 hours ago", ahead: 3, behind: 7, tip: "a1b2c3d", subject: "wip: tweak price tag layout", author: "Jordan Lee", merged: false },
+        { name: "main", current: false, remote: false, upstream: "origin/main", lastCommitRelative: "5 hours ago", ahead: 0, behind: 0, tip: "9f2a11c", subject: "feat: redesign checkout summary", author: "Jordan Lee", merged: false },
+        { name: "fix/cart-rounding", current: false, remote: false, lastCommitRelative: "2 days ago", ahead: 1, behind: 4, tip: "3d9f8a1", subject: "fix: cart total rounding error", author: "Priya Nair", merged: true },
+        { name: "origin/main", current: false, remote: true, lastCommitRelative: "5 hours ago", tip: "9f2a11c", subject: "feat: redesign checkout summary", author: "Jordan Lee" },
+        { name: "origin/feat/checkout-redesign", current: false, remote: true, lastCommitRelative: "2 hours ago", tip: "a1b2c3d", subject: "wip: tweak price tag layout", author: "Jordan Lee" },
+        { name: "origin/release/2.4", current: false, remote: true, lastCommitRelative: "3 weeks ago", tip: "f0d1e2c", subject: "release: cut 2.4.0", author: "Priya Nair" },
       ],
       tags: ["v2.3.0", "v2.2.1", "v2.2.0", "v2.1.0"],
+      tagDetails: [
+        { name: "v2.3.0", commit: "9f2a11c", relative: "5 hours ago", date: "2026-06-19T05:40:00Z", annotated: true, tagger: "Jordan Lee", message: "Checkout redesign + pricing hook. See CHANGELOG for the full list." },
+        { name: "v2.2.1", commit: "3d9f8a1", relative: "2 days ago", date: "2026-06-17T14:22:00Z", annotated: true, tagger: "Priya Nair", message: "Patch: cart total rounding fix (#482)." },
+        { name: "v2.2.0", commit: "c9b8a70", relative: "2 weeks ago", date: "2026-06-05T11:00:00Z", annotated: true, tagger: "Sam Rivera", message: "Minor: search filters + saved carts." },
+        { name: "v2.1.0", commit: "1f2e3d4", relative: "5 weeks ago", date: "2026-05-15T09:30:00Z", annotated: false },
+      ],
       ignored: {
         count: 5,
         samples: ["node_modules", ".next", ".env.local", "coverage", "*.log"],
@@ -855,6 +1280,15 @@ export const projectInsights: ProjectInsights = {
       staged: 0,
       contributors: 6,
       totalCommits: 1284,
+      firstCommitRelative: "2 years ago",
+      trackedFiles: 487,
+      topContributors: [
+        { name: "Jordan Lee", commits: 612 },
+        { name: "Sam Rivera", commits: 398 },
+        { name: "Priya Nair", commits: 201 },
+        { name: "Alex Kim", commits: 54 },
+        { name: "Dana Cho", commits: 19 },
+      ],
     },
     issues: [
       {
@@ -910,10 +1344,47 @@ export const projectInsights: ProjectInsights = {
         provider: "GitHub Actions",
         triggers: ["push", "pull_request"],
         status: "failing",
+        concurrency: "ci-${{ github.ref }}",
+        permissions: ["contents: read"],
+        env: ["CI", "TURBO_TOKEN"],
+        diagnosis: {
+          runnable: true,
+          localCommand: "act pull_request -j typecheck",
+          notes: [
+            "Reproduce the failing job locally with nektos/act (runs the workflow in Docker).",
+            "Or run the underlying script directly: pnpm typecheck.",
+            "typecheck fails on a type error in app/checkout/actions.ts — see the job log.",
+          ],
+        },
         jobs: [
-          { name: "lint", status: "passing", durationMs: 42000 },
-          { name: "typecheck", status: "failing", durationMs: 38000 },
-          { name: "test", status: "passing", durationMs: 96000 },
+          {
+            name: "lint", status: "passing", durationMs: 42000, runsOn: "ubuntu-latest",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4", diagnostics: ["No dependency cache configured (cache: 'pnpm')."] },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Lint", run: "pnpm lint" },
+            ],
+          },
+          {
+            name: "typecheck", status: "failing", durationMs: 38000, runsOn: "ubuntu-latest", needs: ["lint"],
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Type check", run: "pnpm typecheck", diagnostics: ["This step failed: tsc reported 1 error in app/checkout/actions.ts:67."] },
+            ],
+          },
+          {
+            name: "test", status: "passing", durationMs: 96000, runsOn: "ubuntu-latest", needs: ["lint"],
+            condition: "github.event_name == 'pull_request'",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Unit tests", run: "pnpm test --coverage" },
+            ],
+          },
         ],
         issues: [
           {
@@ -943,9 +1414,37 @@ export const projectInsights: ProjectInsights = {
         provider: "GitHub Actions",
         triggers: ["push: main"],
         status: "passing",
+        concurrency: "deploy-production",
+        permissions: ["contents: read", "deployments: write"],
+        env: ["VERCEL_ORG_ID", "VERCEL_PROJECT_ID"],
+        schedules: [],
+        diagnosis: {
+          runnable: true,
+          localCommand: "act push -j build",
+          notes: [
+            "Deploy steps reference repository secrets; act needs a local --secret-file to run end to end.",
+            "The build step mirrors `pnpm build`, which you can run directly to reproduce build issues.",
+          ],
+        },
         jobs: [
-          { name: "build", status: "passing", durationMs: 120000 },
-          { name: "deploy", status: "passing", durationMs: 54000 },
+          {
+            name: "build", status: "passing", durationMs: 120000, runsOn: "ubuntu-latest",
+            steps: [
+              { name: "Checkout", uses: "actions/checkout@v4" },
+              { name: "Setup Node", uses: "actions/setup-node@v4" },
+              { name: "Install", run: "pnpm install --frozen-lockfile" },
+              { name: "Build", run: "pnpm build" },
+            ],
+          },
+          {
+            name: "deploy", status: "passing", durationMs: 54000, runsOn: "ubuntu-latest", needs: ["build"],
+            condition: "github.ref == 'refs/heads/main'",
+            steps: [
+              { name: "Pull Vercel env", run: "vercel pull --yes --environment=production" },
+              { name: "Debug token", run: "echo $DEPLOY_TOKEN", diagnostics: ["Secret printed to logs — remove this echo."] },
+              { name: "Deploy", run: "vercel deploy --prod" },
+            ],
+          },
         ],
         issues: [
           {
@@ -1191,36 +1690,44 @@ export const projectInsights: ProjectInsights = {
         engine: "postgres",
         name: "storefront",
         client: "Drizzle ORM (postgres-js)",
-        host: "db.neon.tech",
+        host: "ep-cool-darkness.us-east-2.aws.neon.tech",
         ssl: true,
         pooled: true,
         envVar: "DATABASE_URL",
         collections: 14,
         filePath: "lib/db.ts",
+        detectedVia: "connection-string",
+        scheme: "postgres",
+        schemaSource: "Drizzle ORM schema",
       },
       {
         id: "db2",
         engine: "mongodb",
         name: "analytics",
-        client: "mongoose",
-        host: "cluster0.mongodb.net",
+        client: "Mongoose",
+        host: "cluster0.ab12c.mongodb.net",
         ssl: true,
         pooled: false,
         envVar: "MONGODB_URI",
         collections: 9,
         filePath: "lib/mongo.ts",
+        detectedVia: "connection-string",
+        scheme: "mongodb+srv",
+        schemaSource: "Mongoose models",
       },
       {
         id: "db3",
         engine: "redis",
         name: "cache",
         client: "ioredis",
-        host: "redis://localhost:6379",
+        host: "localhost:6379",
         ssl: false,
         pooled: true,
         envVar: "REDIS_URL",
         collections: 4,
         filePath: "lib/cache.ts",
+        detectedVia: "dependency",
+        scheme: "redis",
       },
     ],
     findings: [
@@ -1410,6 +1917,407 @@ export const projectInsights: ProjectInsights = {
         note: "Healthy — sub-millisecond cache reads.",
       },
     ],
+    tables: [
+      {
+        name: "users",
+        connectionId: "db1",
+        kind: "table",
+        rowCount: 2840,
+        sizeKb: 450,
+        filePath: "lib/schema/users.ts",
+        columns: [
+          { name: "id", type: "uuid", flags: ["pk"], references: undefined },
+          { name: "email", type: "varchar(255)", flags: ["unique", "index"], references: undefined },
+          { name: "name", type: "varchar(255)", flags: [], references: undefined },
+          { name: "createdAt", type: "timestamp", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "users_email_idx", columns: ["email"], unique: true },
+          { name: "users_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+      {
+        name: "orders",
+        connectionId: "db1",
+        kind: "table",
+        rowCount: 18927,
+        sizeKb: 3200,
+        filePath: "lib/schema/orders.ts",
+        columns: [
+          { name: "id", type: "uuid", flags: ["pk"], references: undefined },
+          { name: "userId", type: "uuid", flags: ["fk", "index"], references: "users.id" },
+          { name: "total", type: "decimal(10,2)", flags: [], references: undefined },
+          { name: "status", type: "enum('pending','completed','failed')", flags: ["index"], references: undefined },
+          { name: "createdAt", type: "timestamp", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "orders_user_idx", columns: ["userId"], unique: false },
+          { name: "orders_status_idx", columns: ["status"], unique: false },
+          { name: "orders_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+      {
+        name: "line_items",
+        connectionId: "db1",
+        kind: "table",
+        rowCount: 64210,
+        sizeKb: 8900,
+        filePath: "lib/schema/orders.ts",
+        columns: [
+          { name: "id", type: "uuid", flags: ["pk"], references: undefined },
+          { name: "orderId", type: "uuid", flags: ["fk", "index"], references: "orders.id" },
+          { name: "productId", type: "uuid", flags: ["fk", "index"], references: "products.id" },
+          { name: "quantity", type: "integer", flags: ["default"], references: undefined },
+          { name: "unitPrice", type: "decimal(10,2)", flags: [], references: undefined },
+        ],
+        indexes: [
+          { name: "line_items_order_idx", columns: ["orderId"], unique: false },
+          { name: "line_items_product_idx", columns: ["productId"], unique: false },
+        ],
+      },
+      {
+        name: "events",
+        connectionId: "db2",
+        kind: "collection",
+        rowCount: 4600000,
+        sizeKb: 185000,
+        filePath: "lib/models/event.ts",
+        columns: [
+          { name: "_id", type: "ObjectId", flags: ["pk"], references: undefined },
+          { name: "type", type: "string", flags: ["index"], references: undefined },
+          { name: "userId", type: "string", flags: ["fk"], references: "users._id" },
+          { name: "data", type: "object", flags: [], references: undefined },
+          { name: "createdAt", type: "Date", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "events_type_idx", columns: ["type"], unique: false },
+          { name: "events_created_idx", columns: ["createdAt"], unique: false },
+        ],
+      },
+      {
+        name: "sessions",
+        connectionId: "db2",
+        kind: "collection",
+        rowCount: 128400,
+        sizeKb: 24300,
+        filePath: "lib/models/session.ts",
+        columns: [
+          { name: "_id", type: "ObjectId", flags: ["pk"], references: undefined },
+          { name: "userId", type: "string", flags: ["fk", "index"], references: "users._id" },
+          { name: "device", type: "string", flags: [], references: undefined },
+          { name: "expiresAt", type: "Date", flags: ["index"], references: undefined },
+        ],
+        indexes: [
+          { name: "sessions_user_idx", columns: ["userId"], unique: false },
+          { name: "sessions_expires_ttl", columns: ["expiresAt"], unique: false },
+        ],
+      },
+    ],
+  },
+
+  auth: {
+    present: true,
+    provider: {
+      id: "better-auth",
+      name: "Better Auth",
+      packageName: "better-auth",
+      docsUrl: "https://www.better-auth.com/docs",
+      deepSupport: true,
+    },
+    version: "1.2.8",
+    integration: "Next.js",
+    configPath: "lib/auth.ts",
+    clientPath: "lib/auth-client.ts",
+    databaseAdapter: { name: "Drizzle", detail: "drizzleAdapter()" },
+    methods: [
+      { id: "email-password", label: "Email & Password", kind: "credential", enabled: true, detail: "Enabled · no email verification" },
+      {
+        id: "social",
+        label: "Social Login",
+        kind: "social",
+        enabled: true,
+        detail: "2 providers",
+        providers: ["github", "google"],
+      },
+    ],
+    socialProviders: ["github", "google"],
+    plugins: [
+      {
+        id: "twoFactor",
+        name: "Two-Factor (2FA)",
+        category: "two-factor",
+        side: "both",
+        detectedServer: true,
+        detectedClient: false,
+        needsClient: true,
+        clientMissing: true,
+        description: "TOTP and OTP-based two-factor authentication.",
+        docsUrl: "https://www.better-auth.com/docs/plugins/2fa",
+        addsTables: ["twoFactor"],
+      },
+      {
+        id: "organization",
+        name: "Organization",
+        category: "authorization",
+        side: "both",
+        detectedServer: true,
+        detectedClient: true,
+        needsClient: true,
+        clientMissing: false,
+        description: "Multi-tenant organizations, members, invitations and roles.",
+        docsUrl: "https://www.better-auth.com/docs/plugins/organization",
+        addsTables: ["organization", "member", "invitation"],
+      },
+      {
+        id: "admin",
+        name: "Admin",
+        category: "authorization",
+        side: "both",
+        detectedServer: true,
+        detectedClient: true,
+        needsClient: true,
+        clientMissing: false,
+        description: "Admin APIs: user management, banning, impersonation, role checks.",
+        docsUrl: "https://www.better-auth.com/docs/plugins/admin",
+      },
+      {
+        id: "magicLink",
+        name: "Magic Link",
+        category: "passwordless",
+        side: "both",
+        detectedServer: true,
+        detectedClient: true,
+        needsClient: true,
+        clientMissing: false,
+        description: "Passwordless email magic-link sign-in.",
+        docsUrl: "https://www.better-auth.com/docs/plugins/magic-link",
+      },
+      {
+        id: "nextCookies",
+        name: "Next.js Cookies",
+        category: "integration",
+        side: "server",
+        detectedServer: true,
+        detectedClient: false,
+        needsClient: false,
+        clientMissing: false,
+        description: "Handles cookie setting inside Next.js server actions.",
+        docsUrl: "https://www.better-auth.com/docs/integrations/next",
+      },
+    ],
+    config: [
+      { key: "secret", label: "Secret", value: "From environment", status: "ok" },
+      {
+        key: "baseURL",
+        label: "Base URL",
+        value: "Set",
+        status: "ok",
+      },
+      { key: "trustedOrigins", label: "Trusted Origins", value: "Configured", status: "ok" },
+      {
+        key: "session",
+        label: "Session lifetime",
+        value: "7d",
+        status: "ok",
+        detail: "Cookie cache enabled",
+      },
+      { key: "rateLimit", label: "Rate limiting", value: "Default (prod only)", status: "info" },
+      { key: "cookies", label: "Secure cookies", value: "Auto (prod)", status: "ok" },
+    ],
+    session: { expiresIn: 604800, updateAge: 86400, cookieCache: true },
+    findings: [
+      {
+        id: "auth-client-twoFactor",
+        severity: "medium",
+        title: "Two-Factor (2FA) is missing its client plugin",
+        detail:
+          "The Two-Factor server plugin is registered but no matching client plugin was found in lib/auth-client.ts. Its client actions won't be available.",
+        recommendation: "Add twoFactorClient() to createAuthClient({ plugins: [...] }).",
+        filePath: "lib/auth.ts",
+        docsUrl: "https://www.better-auth.com/docs/plugins/2fa",
+      },
+      {
+        id: "auth-email-verif",
+        severity: "medium",
+        title: "Email verification not required",
+        detail:
+          "Email & password sign-in is enabled but accounts can be created without verifying ownership of the email address.",
+        recommendation:
+          "Set emailAndPassword.requireEmailVerification = true and wire up emailVerification.sendVerificationEmail.",
+        filePath: "lib/auth.ts",
+        docsUrl: "https://www.better-auth.com/docs/authentication/email-password",
+      },
+      {
+        id: "auth-migrations",
+        severity: "info",
+        title: "Plugins add database tables",
+        detail:
+          "Two-Factor (2FA), Organization extend the schema with new tables. Make sure migrations were generated and applied.",
+        recommendation: "Run `npx @better-auth/cli generate` then your migration tool to sync the schema.",
+        filePath: "lib/auth.ts",
+        docsUrl: "https://www.better-auth.com/docs/concepts/database",
+      },
+    ],
+    counts: { plugins: 5, methods: 2, providers: 2, findings: 3 },
+  },
+
+  api: {
+    present: true,
+    style: "Next.js App Router · Server Actions",
+    endpoints: [
+      {
+        id: "api-1",
+        method: "POST",
+        path: "/api/checkout",
+        kind: "next-app",
+        filePath: "app/api/checkout/route.ts",
+        line: 12,
+        handler: "POST",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: true, env: true, errorHandling: false, inputs: true },
+        findings: [
+          {
+            id: "api-1-auth",
+            severity: "high",
+            kind: "no-auth",
+            title: "Mutation without auth check",
+            detail: "This POST handler changes state but no session/user lookup was detected.",
+            recommendation: "Verify the caller's session before mutating data, or confirm the route is intentionally public.",
+          },
+          {
+            id: "api-1-valid",
+            severity: "medium",
+            kind: "no-validation",
+            title: "Request body not validated",
+            detail: "The handler reads request input but no schema validation (zod/yup/valibot) was found.",
+            recommendation: "Validate and parse the request body with a schema before using it.",
+          },
+        ],
+      },
+      {
+        id: "api-2",
+        method: "GET",
+        path: "/api/products/[id]",
+        kind: "next-app",
+        filePath: "app/api/products/[id]/route.ts",
+        line: 8,
+        handler: "GET",
+        dynamic: true,
+        flags: { auth: false, validation: true, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-3",
+        method: "DELETE",
+        path: "/api/products/[id]",
+        kind: "next-app",
+        filePath: "app/api/products/[id]/route.ts",
+        line: 31,
+        handler: "DELETE",
+        dynamic: true,
+        flags: { auth: true, validation: false, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-4",
+        method: "GET",
+        path: "/api/users",
+        kind: "next-app",
+        filePath: "app/api/users/route.ts",
+        line: 6,
+        handler: "GET",
+        dynamic: false,
+        flags: { auth: true, validation: false, database: true, env: false, errorHandling: true, inputs: false },
+        findings: [],
+      },
+      {
+        id: "api-5",
+        method: "POST",
+        path: "/api/webhooks/stripe",
+        kind: "next-app",
+        filePath: "app/api/webhooks/stripe/route.ts",
+        line: 14,
+        handler: "POST",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: true, env: true, errorHandling: true, inputs: true },
+        findings: [
+          {
+            id: "api-5-valid",
+            severity: "medium",
+            kind: "no-validation",
+            title: "Request body not validated",
+            detail: "The handler reads request input but no schema validation was found. Verify the webhook signature.",
+            recommendation: "Verify the Stripe signature header before trusting the payload.",
+          },
+        ],
+      },
+      {
+        id: "api-6",
+        method: "POST",
+        path: "/updateProfile",
+        kind: "next-action",
+        filePath: "app/actions/profile.ts",
+        line: 9,
+        handler: "updateProfile",
+        dynamic: false,
+        flags: { auth: true, validation: true, database: true, env: false, errorHandling: true, inputs: true },
+        findings: [],
+      },
+      {
+        id: "api-7",
+        method: "GET",
+        path: "/api/health",
+        kind: "next-app",
+        filePath: "app/api/health/route.ts",
+        line: 3,
+        handler: "GET",
+        dynamic: false,
+        flags: { auth: false, validation: false, database: false, env: false, errorHandling: false, inputs: false },
+        findings: [],
+      },
+    ],
+    groups: [
+      {
+        segment: "api",
+        endpoints: [],
+      },
+      {
+        segment: "updateProfile",
+        endpoints: [],
+      },
+    ],
+    methodCounts: [
+      { method: "GET", count: 3 },
+      { method: "POST", count: 3 },
+      { method: "DELETE", count: 1 },
+    ],
+    findings: [
+      {
+        id: "api-1-auth",
+        severity: "high",
+        kind: "no-auth",
+        title: "Mutation without auth check",
+        detail: "POST /api/checkout changes state but no session/user lookup was detected.",
+        recommendation: "Verify the caller's session before mutating data, or confirm the route is intentionally public.",
+      },
+      {
+        id: "api-1-valid",
+        severity: "medium",
+        kind: "no-validation",
+        title: "Request body not validated",
+        detail: "POST /api/checkout reads request input but no schema validation was found.",
+        recommendation: "Validate and parse the request body with a schema before using it.",
+      },
+      {
+        id: "api-5-valid",
+        severity: "medium",
+        kind: "no-validation",
+        title: "Request body not validated",
+        detail: "POST /api/webhooks/stripe reads input without validation. Verify the webhook signature.",
+        recommendation: "Verify the Stripe signature header before trusting the payload.",
+      },
+    ],
+    counts: { endpoints: 7, dynamic: 2, mutations: 4, protected: 3, validated: 2, findings: 3 },
   },
 
   accessibility: {
@@ -1688,9 +2596,41 @@ export const projectInsights: ProjectInsights = {
     coverage: { lines: 62, functions: 58, branches: 49, statements: 63 },
     counts: { total: 184, passed: 171, failed: 5, skipped: 8, suites: 24, durationMs: 14820 },
     suites: [
-      { id: "ts1", name: "cart.test.ts", filePath: "lib/__tests__/cart.test.ts", total: 22, passed: 20, failed: 2, skipped: 0, durationMs: 1840, status: "failed" },
+      {
+        id: "ts1",
+        name: "cart.test.ts",
+        filePath: "lib/__tests__/cart.test.ts",
+        total: 22,
+        passed: 20,
+        failed: 2,
+        skipped: 0,
+        durationMs: 1840,
+        status: "failed",
+        tests: [
+          { name: "should add item to cart", fullName: "Cart › should add item to cart", status: "passed", durationMs: 45, line: 12, assertions: ["cart.items.length === 1", "cart.total > 0"] },
+          { name: "should apply discount before tax", fullName: "Cart › should apply discount before tax", status: "failed", durationMs: 85, line: 48, error: "Expected 90.00 but received 100.00", expected: "90.00", actual: "100.00", assertions: ["cart.subtotal === 90.00"] },
+          { name: "should calculate tax correctly", fullName: "Cart › should calculate tax correctly", status: "passed", durationMs: 32, line: 68, assertions: ["tax === 9.00", "total === 99.00"] },
+          { name: "should remove item from cart", fullName: "Cart › should remove item from cart", status: "failed", durationMs: 28, line: 82, error: "Item not found in cart", assertions: ["cart.items.length === 0"] },
+        ],
+      },
       { id: "ts2", name: "checkout.test.tsx", filePath: "components/__tests__/checkout.test.tsx", total: 18, passed: 15, failed: 1, skipped: 2, durationMs: 3120, status: "failed" },
-      { id: "ts3", name: "auth.test.ts", filePath: "lib/__tests__/auth.test.ts", total: 14, passed: 12, failed: 2, skipped: 0, durationMs: 990, status: "failed" },
+      {
+        id: "ts3",
+        name: "auth.test.ts",
+        filePath: "lib/__tests__/auth.test.ts",
+        total: 14,
+        passed: 12,
+        failed: 2,
+        skipped: 0,
+        durationMs: 990,
+        status: "failed",
+        tests: [
+          { name: "should hash password", status: "passed", durationMs: 28, line: 15, assertions: ["hash !== password", "hash.length > 10"] },
+          { name: "should verify valid session", status: "passed", durationMs: 32, line: 31, assertions: ["session.userId === '123'", "session.valid === true"] },
+          { name: "should reject expired token", status: "failed", durationMs: 18, line: 71, error: "Expected session to be invalid but got valid", assertions: ["session.valid === false"] },
+          { name: "should validate jwt signature", status: "failed", durationMs: 22, line: 85, error: "Invalid signature accepted", assertions: ["verifyToken().valid === false"] },
+        ],
+      },
       { id: "ts4", name: "money.test.ts", filePath: "lib/__tests__/money.test.ts", total: 31, passed: 31, failed: 0, skipped: 0, durationMs: 210, status: "passed" },
       { id: "ts5", name: "api.test.ts", filePath: "lib/__tests__/api.test.ts", total: 26, passed: 24, failed: 0, skipped: 2, durationMs: 2670, status: "passed" },
       { id: "ts6", name: "utils.test.ts", filePath: "lib/__tests__/utils.test.ts", total: 19, passed: 19, failed: 0, skipped: 0, durationMs: 140, status: "passed" },

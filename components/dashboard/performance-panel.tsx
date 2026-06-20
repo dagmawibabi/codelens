@@ -5,7 +5,7 @@ import { Gauge, ShieldCheck, ChevronRight, Zap, Package } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard } from "./insights"
-import { useInspector } from "./inspector"
+import { useInspector, TrackedBadge } from "./inspector"
 import { severityStyle } from "@/lib/severity"
 import { perfToIssue } from "@/lib/issues"
 import type { PerfResult, PerfFinding, WebVital, BundleRoute, VitalRating } from "@/lib/project-insights"
@@ -118,6 +118,7 @@ function FindingRow({ finding }: { finding: PerfFinding }) {
           {finding.line ? `:${finding.line}` : ""}
         </span>
       </div>
+      <TrackedBadge issue={perfToIssue(finding)} variant="dot" className="mt-0.5" />
       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )

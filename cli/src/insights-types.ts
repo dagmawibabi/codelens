@@ -26,6 +26,11 @@ export interface EnvVariable {
   definedIn: string[]
   note: string
   sample?: string
+  /** Raw, unmasked value parsed from the local env file. Read only from the
+   *  developer's own machine and revealed behind an explicit toggle. */
+  value?: string
+  /** Per-file values so the UI can compare .env.local vs .env.example, etc. */
+  values?: { file: string; value: string | null }[]
 }
 
 export interface EnvResult {
@@ -96,6 +101,14 @@ export interface GitCommit {
   message: string
   author: string
   relative: string
+  fullHash?: string
+  email?: string
+  date?: string
+  body?: string
+  files?: GitFileChange[]
+  insertions?: number
+  deletions?: number
+  refs?: string[]
 }
 
 export interface GitBranch {
@@ -107,6 +120,22 @@ export interface GitBranch {
   upstream?: string
   /** Relative time of the branch tip's last commit. */
   lastCommitRelative?: string
+  ahead?: number
+  behind?: number
+  tip?: string
+  subject?: string
+  author?: string
+  merged?: boolean
+}
+
+export interface GitTag {
+  name: string
+  commit?: string
+  relative?: string
+  date?: string
+  message?: string
+  tagger?: string
+  annotated?: boolean
 }
 
 /** Parsed from the `origin` remote URL; powers the repo link in the UI. */
@@ -134,6 +163,7 @@ export interface GitState {
   branches: GitBranch[]
   /** Lightweight tags, newest first. */
   tags: string[]
+  tagDetails?: GitTag[]
   /** Git-ignored files: total count plus a sample for display. */
   ignored: { count: number; samples: string[] }
   /** Number of stash entries. */
@@ -142,14 +172,29 @@ export interface GitState {
   staged: number
   contributors: number
   totalCommits: number
+  firstCommitRelative?: string
+  trackedFiles?: number
+  topContributors?: { name: string; commits: number }[]
 }
 
 export type CiStatus = "passing" | "failing" | "no-runs" | "disabled"
+
+export interface CiStep {
+  name: string
+  uses?: string
+  run?: string
+  condition?: string
+  diagnostics?: string[]
+}
 
 export interface CiJob {
   name: string
   status: CiStatus
   durationMs?: number
+  runsOn?: string
+  needs?: string[]
+  condition?: string
+  steps?: CiStep[]
 }
 
 export interface CiWorkflow {
@@ -161,6 +206,15 @@ export interface CiWorkflow {
   status: CiStatus
   jobs: CiJob[]
   issues: GitIssue[]
+  concurrency?: string
+  permissions?: string[]
+  env?: string[]
+  schedules?: string[]
+  diagnosis?: {
+    localCommand?: string
+    runnable: boolean
+    notes: string[]
+  }
 }
 
 export interface GitResult {
@@ -286,6 +340,8 @@ export type DbIssueKind =
   | "full-scan"
   | "no-validation"
 
+export type DbDetectionSource = "dependency" | "env" | "connection-string" | "schema-file" | "config"
+
 export interface DbConnection {
   id: string
   engine: DbEngine
@@ -297,6 +353,36 @@ export interface DbConnection {
   envVar: string
   collections: number
   filePath: string
+  detectedVia?: DbDetectionSource
+  scheme?: string
+  schemaSource?: string
+}
+
+export type DbColumnFlag = "pk" | "fk" | "unique" | "index" | "nullable" | "default"
+
+export interface DbColumn {
+  name: string
+  type: string
+  flags: DbColumnFlag[]
+  references?: string
+  note?: string
+}
+
+export interface DbIndexInfo {
+  name: string
+  columns: string[]
+  unique: boolean
+}
+
+export interface DbTable {
+  name: string
+  connectionId: string
+  kind: "table" | "collection" | "view"
+  columns: DbColumn[]
+  indexes: DbIndexInfo[]
+  rowCount: number
+  sizeKb?: number
+  filePath?: string
 }
 
 export interface DbFinding {
@@ -329,6 +415,7 @@ export interface DbResult {
   connections: DbConnection[]
   findings: DbFinding[]
   queries: DbQuery[]
+  tables?: DbTable[]
   counts: { connections: number; collections: number; findings: number; slowQueries: number }
 }
 
@@ -427,6 +514,18 @@ export interface PerfResult {
 
 export type TestStatus = "passed" | "failed" | "skipped"
 
+export interface TestCase {
+  name: string
+  fullName?: string
+  status: TestStatus
+  durationMs?: number
+  line?: number
+  assertions?: string[]
+  error?: string
+  expected?: string
+  actual?: string
+}
+
 export interface TestSuite {
   id: string
   name: string
@@ -437,6 +536,7 @@ export interface TestSuite {
   skipped: number
   durationMs: number
   status: TestStatus
+  tests?: TestCase[]
 }
 
 export type TestIssueKind = "failing" | "flaky" | "slow" | "uncovered" | "no-tests"
@@ -479,6 +579,189 @@ export interface TestsResult {
 }
 
 /* ------------------------------------------------------------------ */
+/* Auth (Better Auth)                                                  */
+/* ------------------------------------------------------------------ */
+
+export type AuthStatus = "ok" | "warn" | "fail" | "info"
+
+export type AuthPluginCategory =
+  | "two-factor"
+  | "passwordless"
+  | "social"
+  | "authorization"
+  | "session"
+  | "api"
+  | "enterprise"
+  | "integration"
+  | "utility"
+  | "other"
+
+/** A configured sign-in method (credentials, social, passwordless). */
+export interface AuthMethod {
+  id: string
+  label: string
+  kind: "credential" | "social" | "passwordless"
+  enabled: boolean
+  detail: string
+  /** For social: the configured provider ids. */
+  providers?: string[]
+}
+
+/** A detected Better Auth plugin, server and/or client side. */
+export interface AuthPlugin {
+  id: string
+  name: string
+  category: AuthPluginCategory
+  /** Where this plugin is expected to live. */
+  side: "server" | "client" | "both"
+  detectedServer: boolean
+  detectedClient: boolean
+  /** Whether a matching client plugin is required for it to work. */
+  needsClient: boolean
+  /** True when the server plugin is present but its required client half isn't. */
+  clientMissing: boolean
+  description: string
+  docsUrl: string
+  /** Database tables/models this plugin adds (migration reminder). */
+  addsTables?: string[]
+}
+
+/** A single resolved configuration value with an assessment. */
+export interface AuthConfigItem {
+  key: string
+  label: string
+  value: string
+  status: AuthStatus
+  detail?: string
+  recommendation?: string
+}
+
+export interface AuthFinding {
+  id: string
+  severity: Severity
+  title: string
+  detail: string
+  recommendation: string
+  filePath?: string
+  line?: number
+  docsUrl?: string
+}
+
+export type AuthProviderId =
+  | "better-auth"
+  | "clerk"
+  | "next-auth"
+  | "supabase"
+  | "lucia"
+  | "firebase"
+  | "auth0"
+  | "passport"
+
+export interface AuthProviderInfo {
+  id: AuthProviderId
+  /** Display name, e.g. "Clerk", "Auth.js (NextAuth)". */
+  name: string
+  /** npm package the detection matched on. */
+  packageName: string
+  docsUrl: string
+  /** Whether CodeLens can introspect this provider's config in depth. */
+  deepSupport: boolean
+}
+
+export interface AuthResult {
+  /** True when a supported auth library is a dependency. Gates the tab. */
+  present: boolean
+  /** Which auth library is in use. Undefined only when `present` is false. */
+  provider?: AuthProviderInfo
+  version?: string
+  /** Framework integration in use (e.g. "Next.js"). */
+  integration?: string
+  /** Path to the server auth config, if found. */
+  configPath?: string
+  /** Path to the client auth setup, if found. */
+  clientPath?: string
+  /** Database adapter powering the auth library. */
+  databaseAdapter?: { name: string; detail: string }
+  methods: AuthMethod[]
+  socialProviders: string[]
+  plugins: AuthPlugin[]
+  config: AuthConfigItem[]
+  session: { expiresIn?: number; updateAge?: number; cookieCache?: boolean }
+  findings: AuthFinding[]
+  counts: { plugins: number; methods: number; providers: number; findings: number }
+}
+
+/* ------------------------------------------------------------------ */
+/* API Surface Map                                                     */
+/* ------------------------------------------------------------------ */
+
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "ALL"
+
+export type ApiRouteKind =
+  | "next-app"
+  | "next-pages"
+  | "next-action"
+  | "express"
+  | "hono"
+  | "fastify"
+  | "sveltekit"
+  | "nuxt"
+  | "other"
+
+export interface ApiEndpointFlags {
+  auth: boolean
+  validation: boolean
+  database: boolean
+  env: boolean
+  errorHandling: boolean
+  inputs: boolean
+}
+
+export interface ApiEndpoint {
+  id: string
+  method: HttpMethod
+  path: string
+  kind: ApiRouteKind
+  filePath: string
+  line: number
+  handler?: string
+  flags: ApiEndpointFlags
+  findings: ApiFinding[]
+  dynamic: boolean
+}
+
+export interface ApiFinding {
+  id: string
+  severity: Severity
+  kind: "no-auth" | "no-validation" | "no-error-handling" | "public-mutation" | "wildcard-method" | "hardcoded-secret"
+  title: string
+  detail: string
+  recommendation: string
+}
+
+export interface ApiGroup {
+  segment: string
+  endpoints: ApiEndpoint[]
+}
+
+export interface ApiResult {
+  present: boolean
+  style?: string
+  endpoints: ApiEndpoint[]
+  groups: ApiGroup[]
+  methodCounts: { method: HttpMethod; count: number }[]
+  findings: ApiFinding[]
+  counts: {
+    endpoints: number
+    dynamic: number
+    mutations: number
+    protected: number
+    validated: number
+    findings: number
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Aggregate                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -489,6 +772,8 @@ export interface ProjectInsights {
   setup: SetupResult
   docs: DocsResult
   database: DbResult
+  auth: AuthResult
+  api: ApiResult
   accessibility: A11yResult
   performance: PerfResult
   tests: TestsResult

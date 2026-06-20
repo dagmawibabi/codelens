@@ -1,10 +1,17 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { BookOpen, Bot, FileText, Check, AlertTriangle, X, Minus, ExternalLink, Wrench } from "lucide-react"
+import { BookOpen, Bot, FileText, Check, AlertTriangle, X, Minus, ExternalLink, Wrench, ChevronRight, Scale } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet"
 import { InsightCard } from "./insights"
 import { FileLink } from "./inspector"
 import type { DocsResult, DocCheck, DocCheckStatus, DocFile, DocStandard, DocBand } from "@/lib/project-insights"
@@ -110,10 +117,21 @@ function StandardCard({
   )
 }
 
-function CheckRow({ check }: { check: DocCheck }) {
+function CheckRow({ check, onOpen }: { check: DocCheck; onOpen: () => void }) {
   const vis = checkVisual(check.status)
   return (
-    <div className="flex items-start gap-3 border-t border-border p-4 first:border-t-0">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className="flex w-full cursor-pointer items-start gap-3 border-t border-border p-4 text-left transition-colors first:border-t-0 hover:bg-secondary/40"
+    >
       <vis.Icon className="mt-0.5 size-4 shrink-0" style={{ color: vis.color }} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -128,14 +146,15 @@ function CheckRow({ check }: { check: DocCheck }) {
             {check.status === "na" ? "n/a" : `+${check.weight}`}
           </span>
         </div>
-        <p className="mt-1 text-pretty text-xs leading-relaxed text-muted-foreground">{check.detail}</p>
+        <p className="mt-1 line-clamp-2 text-pretty text-xs leading-relaxed text-muted-foreground">{check.detail}</p>
         {check.fix && (
           <p className="mt-1.5 inline-flex items-start gap-1.5 text-pretty text-xs leading-relaxed text-foreground">
             <Wrench className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-            <span>{check.fix}</span>
+            <span className="line-clamp-1">{check.fix}</span>
           </p>
         )}
       </div>
+      <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
     </div>
   )
 }
@@ -163,7 +182,13 @@ function DocFileRow({ doc }: { doc: DocFile }) {
   )
 }
 
-function StandardSection({ standard }: { standard: DocStandard }) {
+function StandardSection({
+  standard,
+  onOpenCheck,
+}: {
+  standard: DocStandard
+  onOpenCheck: (check: DocCheck) => void
+}) {
   // Group checks by their optional `group` label, preserving order.
   const groups = useMemo(() => {
     const map = new Map<string, DocCheck[]>()
@@ -200,7 +225,7 @@ function StandardSection({ standard }: { standard: DocStandard }) {
           )}
           <Card className="gap-0 overflow-hidden py-0">
             {checks.map((c) => (
-              <CheckRow key={c.id} check={c} />
+              <CheckRow key={c.id} check={c} onOpen={() => onOpenCheck(c)} />
             ))}
           </Card>
         </div>
@@ -211,6 +236,7 @@ function StandardSection({ standard }: { standard: DocStandard }) {
 
 export function DocsPanel({ docs }: { docs: DocsResult }) {
   const [selected, setSelected] = useState<string>("all")
+  const [detail, setDetail] = useState<{ check: DocCheck; standard: DocStandard } | null>(null)
 
   const allChecks = useMemo(() => docs.standards.flatMap((s) => s.checks), [docs.standards])
   const agentChecks = useMemo(() => allChecks.filter((c) => c.agent), [allChecks])
@@ -316,9 +342,118 @@ export function DocsPanel({ docs }: { docs: DocsResult }) {
         </div>
 
         {visibleStandards.map((s) => (
-          <StandardSection key={s.id} standard={s} />
+          <StandardSection key={s.id} standard={s} onOpenCheck={(check) => setDetail({ check, standard: s })} />
         ))}
       </div>
+
+      <CheckDetailSheet detail={detail} onClose={() => setDetail(null)} />
     </div>
+  )
+}
+
+function CheckDetailSheet({
+  detail,
+  onClose,
+}: {
+  detail: { check: DocCheck; standard: DocStandard } | null
+  onClose: () => void
+}) {
+  const check = detail?.check
+  const standard = detail?.standard
+  const vis = check ? checkVisual(check.status) : null
+
+  return (
+    <Sheet open={!!detail} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full gap-0 p-0 sm:!max-w-md">
+        {check && standard && vis && (
+          <>
+            <SheetHeader className="border-b border-border">
+              <div className="flex flex-wrap items-center gap-2 pr-8">
+                <span
+                  className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase"
+                  style={{ color: vis.color, background: `color-mix(in oklch, ${vis.color} 14%, transparent)` }}
+                >
+                  <vis.Icon className="size-3" />
+                  {vis.label}
+                </span>
+                <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                  {standard.label}
+                </span>
+                {check.agent && (
+                  <span className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                    <Bot className="size-3" />
+                    agent
+                  </span>
+                )}
+                {check.group && (
+                  <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                    {check.group}
+                  </span>
+                )}
+              </div>
+              <SheetTitle className="mt-2 text-pretty text-sm leading-relaxed">{check.label}</SheetTitle>
+              <SheetDescription className="sr-only">Documentation check detail</SheetDescription>
+            </SheetHeader>
+
+            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-4">
+              <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-border bg-border">
+                <div className="flex flex-col gap-0.5 bg-card px-3 py-2">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</span>
+                  <span className="font-mono text-sm tabular-nums" style={{ color: vis.color }}>
+                    {vis.label}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 bg-card px-3 py-2">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Weight</span>
+                  <span className="font-mono text-sm tabular-nums text-foreground">
+                    {check.status === "na" ? "n/a" : `+${check.weight}`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <BookOpen className="size-3.5" />
+                  What this checks
+                </p>
+                <p className="text-pretty text-sm leading-relaxed text-foreground">{check.detail}</p>
+              </div>
+
+              {check.fix && (
+                <div className="flex flex-col gap-2">
+                  <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <Wrench className="size-3.5" />
+                    How to fix
+                  </p>
+                  <p className="rounded-sm border border-border bg-secondary/30 px-3 py-2 text-pretty text-sm leading-relaxed text-foreground">
+                    {check.fix}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Scale className="size-3.5" />
+                  Standard
+                </p>
+                <div className="rounded-sm border border-border bg-card p-3">
+                  <p className="text-sm font-medium text-foreground">{standard.label}</p>
+                  <p className="mt-0.5 text-pretty text-xs leading-relaxed text-muted-foreground">{standard.tagline}</p>
+                  <a
+                    href={standard.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {standard.source}
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   )
 }

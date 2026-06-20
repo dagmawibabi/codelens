@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Check, Loader2, Minus, Play, RotateCcw } from "lucide-react"
-import { useRunEngine, RUN_PHASES, type LogLevel } from "@/lib/run-engine"
+import { Check, Loader2, Minus, Play, RotateCcw, Radio, FlaskConical } from "lucide-react"
+import { useRunStream, RUN_PHASES, type LogLevel } from "@/lib/run-engine"
 import type { AnalysisReport, PhaseStatus } from "@/lib/schema"
 import { cn } from "@/lib/utils"
 import {
@@ -42,20 +42,15 @@ const LEVEL_TAG: Record<LogLevel, string> = {
  */
 function RunDialogBody({ report }: { report: AnalysisReport }) {
   const aiEnabled = report.meta.aiEnabled
-  const { phases, logs, running, done, elapsedMs, start } = useRunEngine(aiEnabled, true)
+  // Drives the view from real CLI events when a backend is connected, and
+  // triggers the actual `/api/run` itself; falls back to a scripted run only
+  // when there is no backend (standalone preview).
+  const { phases, logs, running, done, elapsedMs, start, mode } = useRunStream(aiEnabled, true, report)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [logs])
-
-  // When a real CodeLens backend is present, trigger an actual re-analysis.
-  // The live socket drives the dashboard's data; this animation reflects it.
-  useEffect(() => {
-    void fetch("/api/run", { method: "POST" }).catch(() => {
-      /* no backend (preview) — the simulated engine still plays */
-    })
-  }, [])
 
   const completed = RUN_PHASES.filter((p) => phases[p.id] === "done" || phases[p.id] === "skipped").length
   const progress = Math.round((completed / RUN_PHASES.length) * 100)
@@ -82,6 +77,24 @@ function RunDialogBody({ report }: { report: AnalysisReport }) {
           )}
           {done ? "Complete" : running ? "Running…" : "Ready"}
         </span>
+        {mode && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[10px] uppercase",
+              mode === "live"
+                ? "border-[color:var(--sev-ok)]/40 text-[color:var(--sev-ok)]"
+                : "border-border text-muted-foreground",
+            )}
+            title={
+              mode === "live"
+                ? "Streaming real results from the CodeLens CLI"
+                : "No CLI backend connected — showing a simulated run"
+            }
+          >
+            {mode === "live" ? <Radio className="size-3" /> : <FlaskConical className="size-3" />}
+            {mode === "live" ? "Live" : "Simulated"}
+          </span>
+        )}
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"

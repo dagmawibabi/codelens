@@ -160,6 +160,9 @@ export async function collectEnv(ctx: ScanContext): Promise<EnvResult> {
       definedIn,
       note,
       sample: emptyKeys.has(key) ? "(empty)" : sampleVal != null ? mask(sampleVal) : undefined,
+      // Raw value for the (locally-rendered) Values tab. Empty string when the
+      // key is declared with no value; undefined when it isn't declared at all.
+      value: emptyKeys.has(key) ? "" : sampleVal,
     })
   }
 

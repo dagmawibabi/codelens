@@ -47,12 +47,15 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: "openrouter",
     name: "OpenRouter",
-    blurb: "Single key, hundreds of models across providers.",
+    blurb: "Single key, hundreds of models across providers — including free tiers.",
     envVar: "OPENROUTER_API_KEY",
     keyPrefix: "sk-or-",
     needsKey: true,
     keyUrl: "https://openrouter.ai/keys",
     models: [
+      { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B (free)", note: "Free · solid general text model" },
+      { id: "deepseek/deepseek-chat-v3-0324:free", label: "DeepSeek V3 (free)", note: "Free · strong reasoning" },
+      { id: "google/gemini-2.0-flash-exp:free", label: "Gemini 2.0 Flash (free)", note: "Free · fast, large context" },
       { id: "anthropic/claude-opus-4.6", label: "Claude Opus 4.6" },
       { id: "anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet" },
       { id: "openai/gpt-5", label: "GPT-5" },
@@ -121,6 +124,15 @@ export function getProvider(id: ProviderId): ProviderDef {
   return PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]
 }
 
+/**
+ * The out-of-the-box model: a text model that's free to run on OpenRouter.
+ * When it's unavailable (no OpenRouter key, rate-limited, or errored) the CLI
+ * transparently falls back to {@link FALLBACK_MODEL}.
+ */
+export const FREE_OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+/** Zero-config fallback through the Vercel AI Gateway. */
+export const FALLBACK_MODEL = "google/gemini-2.5-flash"
+
 export interface CodeLensSettings {
   provider: ProviderId
   model: string
@@ -132,18 +144,47 @@ export interface CodeLensSettings {
   redactSecrets: boolean
   /** Max source files sent to the model per run. */
   maxFiles: number
+  /** Enable the in-dashboard AI chat assistant ("Ask AI"). */
+  chatEnabled: boolean
+  /** Persist chat history to .codelens/chats.json (vs. memory-only). */
+  persistChats: boolean
+  /** Optional GitHub token for higher API rate limits / private repos. */
+  githubToken: string
+  /** Optional default repo (owner/repo) for the Git & Releases tabs. */
+  defaultRepo: string
+  /**
+   * Display-only: when true, the UI layers subtle semantic hues over the
+   * monochrome theme (severity tags, charts, hovers, focus rings). Applied via
+   * the `accents` class on <html>; never written to the CLI config.
+   */
+  colorAccents: boolean
 }
 
 export const DEFAULT_SETTINGS: CodeLensSettings = {
-  provider: "vercel",
-  model: "anthropic/claude-opus-4.6",
+  provider: "openrouter",
+  model: FREE_OPENROUTER_MODEL,
   keys: {},
   aiEnabled: true,
   redactSecrets: true,
   maxFiles: 25,
+  chatEnabled: true,
+  persistChats: true,
+  githubToken: "",
+  defaultRepo: "",
+  colorAccents: false,
 }
 
 const STORAGE_KEY = "codelens.settings.v1"
+
+/**
+ * Toggle the `accents` class on <html>, which swaps the monochrome severity /
+ * chart / accent tokens for subtly-hued ones (see globals.css). Safe to call on
+ * the server (no-op) and idempotent.
+ */
+export function applyColorAccents(on: boolean) {
+  if (typeof document === "undefined") return
+  document.documentElement.classList.toggle("accents", on)
+}
 
 export function loadSettings(): CodeLensSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS
@@ -178,14 +219,24 @@ export function toConfigFile(settings: CodeLensSettings) {
   const env: Record<string, string> = {}
   const key = settings.keys[settings.provider]
   if (provider.needsKey && key) env[provider.envVar] = key
+  if (settings.githubToken.trim()) env.GITHUB_TOKEN = settings.githubToken.trim()
 
   return {
     ai: {
       enabled: settings.aiEnabled,
       provider: settings.provider,
       model: settings.model,
+      fallbackModel: FALLBACK_MODEL,
       maxFiles: settings.maxFiles,
       redactSecrets: settings.redactSecrets,
+    },
+    chat: {
+      enabled: settings.chatEnabled,
+      persist: settings.persistChats,
+      model: settings.model,
+    },
+    github: {
+      ...(settings.defaultRepo.trim() ? { defaultRepo: settings.defaultRepo.trim() } : {}),
     },
     env,
   }

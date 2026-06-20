@@ -5,7 +5,7 @@ import { Package, ShieldCheck, ArrowUpRight, Boxes, ListTree, Share2 } from "luc
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InsightCard, ProportionBar, CountList } from "./insights"
-import { FileLink, useInspector } from "./inspector"
+import { FileLink, useInspector, TrackedBadge } from "./inspector"
 import { DependencyGraph } from "./dependency-graph"
 import { severityStyle, bySeverityDesc } from "@/lib/severity"
 import { depToIssue } from "@/lib/issues"
@@ -70,6 +70,7 @@ function FindingRow({ dep }: { dep: DependencyFinding }) {
             )}
           </div>
         </div>
+        <TrackedBadge issue={depToIssue(dep)} variant="dot" className="mt-0.5" />
       </div>
       {dep.fixedIn && (
         <div className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-[color:var(--sev-ok)]/40 bg-[color:var(--sev-ok)]/10 px-2.5 py-1 font-mono text-xs text-[color:var(--sev-ok)]">

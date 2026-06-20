@@ -5,6 +5,8 @@ import { collectGit } from "./git.js"
 import { collectSetup } from "./setup.js"
 import { collectDocs } from "./docs.js"
 import { collectDatabase } from "./database.js"
+import { collectAuth } from "./auth.js"
+import { collectApi } from "./api.js"
 import { collectAccessibility } from "./accessibility.js"
 import { collectPerformance } from "./performance.js"
 import { collectTests } from "./tests.js"
@@ -47,7 +49,7 @@ export async function collectInsights(
     }
   }
 
-  const [env, network, git, setup, docs, database, accessibility, performance, tests, typeDefinitions] =
+  const [env, network, git, setup, docs, database, auth, api, accessibility, performance, tests, typeDefinitions] =
     await Promise.all([
       safe("env", () => collectEnv(scan), emptyEnv()),
       safe("network", () => collectNetwork(scan), emptyNetwork()),
@@ -55,6 +57,8 @@ export async function collectInsights(
       safe("setup", () => collectSetup(scan), emptySetup()),
       safe("docs", () => collectDocs(scan), emptyDocs()),
       safe("database", () => collectDatabase(scan), emptyDb()),
+      safe("auth", () => collectAuth(scan), emptyAuth()),
+      safe("api", () => collectApi(scan), emptyApi()),
       safe("accessibility", () => collectAccessibility(scan), emptyA11y()),
       safe("performance", () => collectPerformance(scan), emptyPerf()),
       safe("tests", () => collectTests(scan), emptyTests()),
@@ -62,7 +66,7 @@ export async function collectInsights(
     ])
 
   return {
-    insights: { env, network, git, setup, docs, database, accessibility, performance, tests },
+    insights: { env, network, git, setup, docs, database, auth, api, accessibility, performance, tests },
     typeDefinitions,
   }
 }
@@ -135,6 +139,28 @@ function emptyDocs(): ProjectInsights["docs"] {
 }
 function emptyDb(): ProjectInsights["database"] {
   return { connections: [], findings: [], queries: [], counts: { connections: 0, collections: 0, findings: 0, slowQueries: 0 } }
+}
+function emptyAuth(): ProjectInsights["auth"] {
+  return {
+    present: false,
+    methods: [],
+    socialProviders: [],
+    plugins: [],
+    config: [],
+    session: {},
+    findings: [],
+    counts: { plugins: 0, methods: 0, providers: 0, findings: 0 },
+  }
+}
+function emptyApi(): ProjectInsights["api"] {
+  return {
+    present: false,
+    endpoints: [],
+    groups: [],
+    methodCounts: [],
+    findings: [],
+    counts: { endpoints: 0, dynamic: 0, mutations: 0, protected: 0, validated: 0, findings: 0 },
+  }
 }
 function emptyA11y(): ProjectInsights["accessibility"] {
   return {

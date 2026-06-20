@@ -17,6 +17,10 @@ import {
   KeyRound,
   Globe,
   Accessibility,
+  Sparkles,
+  ClipboardCheck,
+  ClipboardList,
+  Plus,
 } from "lucide-react"
 import {
   Sheet,
@@ -37,6 +41,8 @@ import { Badge } from "@/components/ui/badge"
 import { severityStyle } from "@/lib/severity"
 import { getFileContent } from "@/lib/file-contents"
 import { EDITORS, absolutePath, issueDocs, type Issue } from "@/lib/issues"
+import { addTaskFromIssue, addGroup, useGroups, useTrackedIssueKeys, issueKey } from "@/lib/tasks"
+import type { ChatSeed } from "@/lib/chat-types"
 import { cn } from "@/lib/utils"
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +53,9 @@ interface InspectorContextValue {
   projectRoot: string
   viewFile: (filePath: string, line?: number, column?: number) => void
   viewIssue: (issue: Issue) => void
+  /** Whether an "Ask AI" handler is wired up (the chat tab is available). */
+  canAskAI: boolean
+  askAI: (seed: ChatSeed) => void
 }
 
 const InspectorContext = createContext<InspectorContextValue | null>(null)
@@ -228,6 +237,29 @@ function MetaCell({ label, value, highlight }: { label: string; value: string; h
   )
 }
 
+/** Build a chat seed from an issue so the assistant has full context. */
+function issueToSeed(issue: Issue): ChatSeed {
+  const summary = [
+    issue.description,
+    issue.recommendation ? `Suggested direction: ${issue.recommendation}` : "",
+    issue.ruleId ? `Rule: ${issue.ruleId}` : "",
+    issue.code ? `Code: ${issue.code}` : "",
+    issue.cves?.length ? `Advisories: ${issue.cves.join(", ")}` : "",
+    issue.snippet ? `\nRelevant code:\n${issue.snippet.code}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+  return {
+    source: issue.source,
+    title: issue.title,
+    summary,
+    filePath: issue.filePath,
+    line: issue.line,
+    severity: issue.severity,
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Provider                                                            */
 /* ------------------------------------------------------------------ */
@@ -240,9 +272,12 @@ interface FileTarget {
 
 export function InspectorProvider({
   projectRoot,
+  onAskAI,
   children,
 }: {
   projectRoot: string
+  /** When provided, issue sheets show an "Ask AI" button that opens a seeded chat. */
+  onAskAI?: (seed: ChatSeed) => void
   children: React.ReactNode
 }) {
   const [fileTarget, setFileTarget] = useState<FileTarget | null>(null)
@@ -253,10 +288,17 @@ export function InspectorProvider({
     setFileTarget({ filePath, line, column })
   }, [])
   const viewIssue = useCallback((next: Issue) => setIssue(next), [])
+  const askAI = useCallback(
+    (seed: ChatSeed) => {
+      onAskAI?.(seed)
+      setIssue(null)
+    },
+    [onAskAI],
+  )
 
   const value = useMemo(
-    () => ({ projectRoot, viewFile, viewIssue }),
-    [projectRoot, viewFile, viewIssue],
+    () => ({ projectRoot, viewFile, viewIssue, canAskAI: Boolean(onAskAI), askAI }),
+    [projectRoot, viewFile, viewIssue, onAskAI, askAI],
   )
 
   const fileCode = fileTarget ? getFileContent(fileTarget.filePath) : null
@@ -352,7 +394,7 @@ export function InspectorProvider({
               </SheetHeader>
 
               <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-4">
-                {/* Location */}
+                {/* Location + primary actions */}
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -367,6 +409,17 @@ export function InspectorProvider({
                     line={issue.line}
                     column={issue.column ?? 1}
                   />
+                  {onAskAI && (
+                    <button
+                      type="button"
+                      onClick={() => askAI(issueToSeed(issue))}
+                      className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    >
+                      <Sparkles className="size-3.5" />
+                      Ask AI
+                    </button>
+                  )}
+                  <TrackTaskButton issue={issue} />
                   {issue.fixable && (
                     <span className="rounded-sm bg-[color:var(--sev-ok)]/12 px-2 py-1 font-mono text-[11px] text-[color:var(--sev-ok)]">
                       auto-fixable
@@ -624,6 +677,160 @@ export function InspectorProvider({
         </SheetContent>
       </Sheet>
     </InspectorContext.Provider>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* TrackTaskButton — captures an issue into the local task board       */
+/* ------------------------------------------------------------------ */
+
+function TrackTaskButton({ issue }: { issue: Issue }) {
+  const groups = useGroups()
+  const trackedKeys = useTrackedIssueKeys()
+  const tracked = trackedKeys.has(issueKey(issue))
+  const [open, setOpen] = useState(false)
+  const [flash, setFlash] = useState<"added" | "exists" | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState("")
+
+  function resetMenu() {
+    setCreating(false)
+    setNewName("")
+  }
+
+  function track(groupId?: string) {
+    const { created } = addTaskFromIssue(issue, groupId)
+    setFlash(created ? "added" : "exists")
+    window.setTimeout(() => setFlash(null), 1600)
+    setOpen(false)
+    resetMenu()
+  }
+
+  function createAndTrack() {
+    const name = newName.trim()
+    if (!name) return
+    const group = addGroup(name)
+    track(group.id)
+  }
+
+  // Button reflects tracked state at rest; flashes feedback right after a click.
+  const label =
+    flash === "added" ? "Tracked" : flash === "exists" ? "Already tracked" : tracked ? "Tracked" : "Track task"
+  const Icon = flash || tracked ? ClipboardCheck : ClipboardList
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (!o) resetMenu()
+      }}
+    >
+      <DropdownMenuTrigger
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1.5 font-mono text-xs transition-colors",
+          tracked
+            ? "border-foreground/40 bg-secondary text-foreground"
+            : "border-border bg-card text-foreground hover:bg-secondary",
+        )}
+      >
+        <Icon className={cn("size-3.5", tracked ? "text-foreground" : "text-muted-foreground")} />
+        {label}
+        <ChevronRight className="size-3 rotate-90 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <p className="px-1.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          {tracked ? "Update task group" : "Add to task board"}
+        </p>
+        <DropdownMenuItem onClick={() => track(undefined)}>
+          <ClipboardList className="size-3.5 text-muted-foreground" />
+          Track (no group)
+        </DropdownMenuItem>
+        {groups.length > 0 && <DropdownMenuSeparator />}
+        {groups.map((g) => (
+          <DropdownMenuItem key={g.id} onClick={() => track(g.id)}>
+            <span className="size-2 rounded-full border border-muted-foreground" aria-hidden />
+            {g.name}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        {creating ? (
+          <div
+            className="flex items-center gap-1.5 px-1.5 py-1"
+            // Keep keystrokes from reaching the menu's typeahead handler.
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  createAndTrack()
+                }
+              }}
+              placeholder="New group name"
+              className="w-full rounded-sm border border-border bg-background px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={createAndTrack}
+              disabled={!newName.trim()}
+              className="rounded-sm bg-primary px-2 py-1 font-mono text-[11px] text-primary-foreground disabled:opacity-40"
+            >
+              Add
+            </button>
+          </div>
+        ) : (
+          <DropdownMenuItem
+            closeOnClick={false}
+            onClick={() => setCreating(true)}
+          >
+            <Plus className="size-3.5 text-muted-foreground" />
+            New group…
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* TrackedBadge — marks an issue row that's already on the task board  */
+/* ------------------------------------------------------------------ */
+
+export function TrackedBadge({
+  issue,
+  variant = "badge",
+  className,
+}: {
+  issue: Pick<Issue, "source" | "filePath" | "line" | "title">
+  /** "badge" shows a labelled chip; "dot" shows a compact icon only. */
+  variant?: "badge" | "dot"
+  className?: string
+}) {
+  const keys = useTrackedIssueKeys()
+  if (!keys.has(issueKey(issue))) return null
+  if (variant === "dot") {
+    return (
+      <ClipboardCheck
+        className={cn("size-3.5 shrink-0 text-foreground", className)}
+        aria-label="Tracked in Task Manager"
+      />
+    )
+  }
+  return (
+    <span
+      title="Tracked in Task Manager"
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border border-foreground/40 bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground",
+        className,
+      )}
+    >
+      <ClipboardCheck className="size-3" />
+      tracked
+    </span>
   )
 }
 

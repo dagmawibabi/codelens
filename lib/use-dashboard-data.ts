@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import useSWR from "swr"
 import type { AnalysisReport, TrendPoint } from "@/lib/schema"
 import { mockReport, mockHistory } from "@/lib/mock-data"
 import { projectInsights, type ProjectInsights } from "@/lib/project-insights"
 import { EMPTY_DATA } from "@/lib/empty-data"
+import { seedDemoTasks } from "@/lib/tasks"
 
 export interface DashboardData {
   report: AnalysisReport
@@ -63,7 +64,13 @@ export function useDashboardData(): UseDashboardData {
   )
 
   const [live, setLive] = useState<DashboardData | null>(null)
-  const [demo, setDemo] = useState(false)
+  const [demo, setDemoState] = useState(false)
+  // Turning demo data on also seeds a sample Task Manager worklist (once),
+  // so the board is populated when exploring the bundled demo.
+  const setDemo = useCallback((on: boolean) => {
+    if (on) seedDemoTasks()
+    setDemoState(on)
+  }, [])
   const hasBackend = !error && (data != null || live != null)
   const wsRef = useRef<WebSocket | null>(null)
 
