@@ -63,4 +63,4 @@ Without a key, lint + type-check + dependency advisories still run; only the AI 
 
 ## License
 
-MIT
+[MIT](LICENSE)
