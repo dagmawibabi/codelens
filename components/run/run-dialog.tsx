@@ -40,7 +40,7 @@ const LEVEL_TAG: Record<LogLevel, string> = {
  * Inner body that drives the run engine. Mounted only while the dialog is open
  * so that each open starts a fresh run (the hook auto-starts on mount).
  */
-function RunDialogBody({ report }: { report: AnalysisReport }) {
+function RunDialogBody({ report, onClose }: { report: AnalysisReport; onClose: () => void }) {
   const aiEnabled = report.meta.aiEnabled
   // Drives the view from real CLI events when a backend is connected, and
   // triggers the actual `/api/run` itself; falls back to a scripted run only
@@ -105,14 +105,24 @@ function RunDialogBody({ report }: { report: AnalysisReport }) {
           {(elapsedMs / 1000).toFixed(1)}s · {progress}%
         </span>
         {done && (
-          <button
-            type="button"
-            onClick={start}
-            className="inline-flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <RotateCcw className="size-3.5" />
-            Re-run
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={start}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <RotateCcw className="size-3.5" />
+              Re-run
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-foreground px-3 py-1.5 font-mono text-xs text-background transition-opacity hover:opacity-90"
+            >
+              <Check className="size-3.5" />
+              Done
+            </button>
+          </>
         )}
       </div>
 
@@ -221,7 +231,9 @@ export function RunDialog({ open, onOpenChange, report }: RunDialogProps) {
             {report.meta.project.framework} · {report.meta.project.packageManager} · {report.meta.project.root}
           </DialogDescription>
         </DialogHeader>
-        <div className="pt-5">{open && <RunDialogBody report={report} />}</div>
+        <div className="pt-5">
+          {open && <RunDialogBody report={report} onClose={() => onOpenChange(false)} />}
+        </div>
       </DialogContent>
     </Dialog>
   )

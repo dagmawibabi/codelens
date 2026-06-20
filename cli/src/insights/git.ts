@@ -88,6 +88,14 @@ const CI_FILES: Array<{ glob: RegExp; provider: CiWorkflow["provider"] }> = [
   { glob: /^\.circleci\/config\.ya?ml$/, provider: "CircleCI" },
 ]
 
+// Field/record separators embedded literally in git --format strings. We use
+// the actual control characters (not git's `%x1f`/`%x1e` escapes) because only
+// `git log` interprets those escapes — `git for-each-ref` and `git tag` emit
+// them verbatim, which previously left raw "%x1f" text in branch/tag names.
+// A literal control byte is copied through unchanged by every git command.
+const US = "\u001f" // unit separator → between fields
+const RS = "\u001e" // record separator → between commits
+
 /**
  * Parse `git log` records that use unit-separator (\u001f) between fields and
  * record-separator (\u001e) between commits, optionally followed by a
@@ -233,7 +241,7 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
     git(root, [
       "log",
       "-15",
-      "--format=%h%x1f%H%x1f%s%x1f%an%x1f%ae%x1f%aI%x1f%b%x1e",
+      `--format=%h${US}%H${US}%s${US}%an${US}%ae${US}%aI${US}%b${RS}`,
       "--numstat",
     ]),
     git(root, ["remote", "get-url", "origin"]),
@@ -244,7 +252,7 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
     git(root, [
       "for-each-ref",
       "--sort=-committerdate",
-      "--format=%(refname:short)%x1f%(HEAD)%x1f%(upstream:short)%x1f%(committerdate:relative)%x1f%(objectname:short)%x1f%(subject)%x1f%(authorname)",
+      `--format=%(refname:short)${US}%(HEAD)${US}%(upstream:short)${US}%(committerdate:relative)${US}%(objectname:short)${US}%(subject)${US}%(authorname)`,
       "refs/heads",
       "refs/remotes",
     ]),
@@ -253,7 +261,7 @@ export async function collectGit(ctx: ScanContext): Promise<GitResult> {
       "tag",
       "-l",
       "--sort=-creatordate",
-      "--format=%(refname:short)%x1f%(objectname:short)%x1f%(creatordate:iso)%x1f%(object:objecttype)%x1f%(contents:subject)%x1f%(taggername)",
+      `--format=%(refname:short)${US}%(objectname:short)${US}%(creatordate:iso)${US}%(object:objecttype)${US}%(contents:subject)${US}%(taggername)`,
     ]),
     git(root, ["ls-files", "--others", "--ignored", "--exclude-standard"]),
     git(root, ["stash", "list"]),

@@ -3,7 +3,7 @@ import { Command } from "commander"
 import open from "open"
 import { runAnalysis } from "./run.js"
 import { startServer, type ServerState } from "./server.js"
-import { saveRun, readHistory, readState } from "./store.js"
+import { saveRun, readHistory, readState, clearData } from "./store.js"
 import { aiEnabled } from "./ai/audit.js"
 import { loadConfig } from "./config.js"
 import type { DashboardState, RunEvent } from "./types.js"
@@ -36,9 +36,13 @@ const ai = Boolean(opts.ai) && config.aiEnabled && aiEnabled()
 
 if (Boolean(opts.ai) && config.aiEnabled && !aiEnabled()) {
   console.error(
-    "\x1b[33m![codelens]\x1b[0m AI security audit is enabled but no model key was found.\n" +
-      "  Set AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to enable it, or pass --no-ai to silence this.\n" +
-      "  Lint and type-check will still run.\n",
+    "\x1b[33m![codelens]\x1b[0m AI security audit is enabled but no gateway key was found.\n" +
+      "  The default model is free, but requests still route through the Vercel AI Gateway,\n" +
+      "  which needs an API key (the key is free — it does not require an OpenRouter account).\n" +
+      "    1. Get a free key at \x1b[36mhttps://vercel.com/ai-gateway\x1b[0m\n" +
+      "    2. Run \x1b[1mexport AI_GATEWAY_API_KEY=...\x1b[0m  (or set it in .codelens.json / your shell)\n" +
+      "  Alternatively set OPENAI_API_KEY, or pass \x1b[1m--no-ai\x1b[0m to silence this.\n" +
+      "  Lint, type-check, and dependency audit still run without it.\n",
   )
 }
 
@@ -99,6 +103,7 @@ async function main() {
     onRunRequest: async () => {
       await analyze()
     },
+    onClearData: (scope) => clearData(cwd, scope),
   })
   console.log(`\n  \x1b[36mCodeLens\x1b[0m dashboard → \x1b[1m${server.url}\x1b[0m\n`)
 

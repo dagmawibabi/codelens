@@ -134,7 +134,6 @@ export async function startServer(opts: {
   })
 
   const wss = new WebSocketServer({ server, path: "/ws" })
-  const sockets = new Set<WebSocket>()
   wss.on("connection", (ws) => {
     sockets.add(ws)
     // Hydrate the freshly connected client with the latest known state.
@@ -149,12 +148,7 @@ export async function startServer(opts: {
 
   return {
     url,
-    broadcast(event) {
-      const payload = JSON.stringify(event)
-      for (const ws of sockets) {
-        if (ws.readyState === WebSocket.OPEN) ws.send(payload)
-      }
-    },
+    broadcast,
     close() {
       return new Promise((resolve) => {
         for (const ws of sockets) ws.close()
