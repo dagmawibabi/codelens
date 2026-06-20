@@ -26,6 +26,7 @@ import {
   Route,
   LineChart,
   ClipboardList,
+  Boxes,
 } from "lucide-react"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -60,11 +61,13 @@ import { TestsPanel } from "./tests-panel"
 import { InspectorProvider } from "./inspector"
 import { CommandPalette, type TabDef } from "./command-palette"
 import { EmptyState } from "./empty-state"
+import { WorkspaceSelector } from "./workspace-selector"
+import { WorkspaceOverview } from "./workspace-overview"
 import { SettingsView } from "@/components/settings/settings-view"
 import { ChatView } from "@/components/chat/chat-view"
 import { ApiReference } from "./api-reference"
 import { RunDialog } from "@/components/run/run-dialog"
-import type { AnalysisReport, TrendPoint } from "@/lib/schema"
+import type { AnalysisReport, TrendPoint, WorkspaceReport } from "@/lib/schema"
 import type { ProjectInsights } from "@/lib/project-insights"
 import type { ChatSeed } from "@/lib/chat-types"
 import { loadSettings } from "@/lib/settings"
@@ -79,12 +82,14 @@ interface NavGroup {
 /**
  * Builds the sidebar navigation. The Auth tab is only included when the project
  * actually uses Better Auth, so unrelated projects don't get an empty section.
+ * The Packages tab is only included in monorepo mode.
  */
-function buildNavGroups(authPresent: boolean, apiPresent: boolean): NavGroup[] {
+function buildNavGroups(authPresent: boolean, apiPresent: boolean, hasWorkspace: boolean): NavGroup[] {
   return [
     {
       items: [
         { value: "overview", label: "Overview", icon: LayoutDashboard },
+        ...(hasWorkspace ? [{ value: "workspace", label: "Packages", icon: Boxes }] : []),
         { value: "trends", label: "Trends", icon: LineChart },
         { value: "tasks", label: "Task Manager", icon: ClipboardList },
       ],
@@ -140,6 +145,7 @@ export function Dashboard({
   empty = false,
   demoActive = false,
   onToggleDemo,
+  workspace,
 }: {
   report: AnalysisReport
   history: TrendPoint[]
@@ -150,11 +156,31 @@ export function Dashboard({
   demoActive?: boolean
   /** Toggle the bundled demo data on/off. */
   onToggleDemo?: (on: boolean) => void
+  /** Present in monorepo mode. */
+  workspace?: WorkspaceReport
 }) {
-  const { lint, types, security, deps } = report
   const [tab, setTab] = useState("overview")
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [runOpen, setRunOpen] = useState(false)
+  const [selectedPackage, setSelectedPackage] = useState<string | null>(null)
+
+  // Derive the active report and insights based on selected package.
+  // When null, show the aggregate/root; when set, show that package's data.
+  const activeReport = useMemo(() => {
+    if (selectedPackage && workspace?.packages[selectedPackage]) {
+      return workspace.packages[selectedPackage].report
+    }
+    return report
+  }, [selectedPackage, workspace, report])
+
+  const activeInsights = useMemo(() => {
+    if (selectedPackage && workspace?.packages[selectedPackage]) {
+      return workspace.packages[selectedPackage].insights as ProjectInsights
+    }
+    return insights
+  }, [selectedPackage, workspace, insights])
+
+  const { lint, types, security, deps } = activeReport
 
   // "Ask AI" handoff: a detail sheet seeds a new chat and jumps to the chat tab.
   const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null)
@@ -177,32 +203,33 @@ export function Dashboard({
   }, [chatEnabled, tab])
 
   // Auth + API Surface tabs are conditional on detection in the project.
+  // Packages tab is conditional on monorepo mode.
   const navGroups = useMemo(
-    () => buildNavGroups(insights.auth.present, insights.api.present),
-    [insights.auth.present, insights.api.present],
+    () => buildNavGroups(activeInsights.auth.present, activeInsights.api.present, !!workspace),
+    [activeInsights.auth.present, activeInsights.api.present, workspace],
   )
   const tabs = useMemo<TabDef[]>(() => navGroups.flatMap((g) => g.items), [navGroups])
 
   // Open (not-done) tasks across the board — keeps the nav badge in sync as
-  // issues are tracked or completed from anywhere in the app.
+  // issues are tracked or completed from anywhere in the dashboard.
   const openTaskCount = useOpenTaskCount()
 
   const counts: Record<string, number> = {
     tasks: openTaskCount,
     lint: lint.errorCount + lint.warningCount,
     types: types.diagnostics.length,
-    tests: insights.tests.findings.length,
+    tests: activeInsights.tests.findings.length,
     security: security.findings.length,
     deps: deps.findings.length,
-    env: insights.env.counts.issues,
-    network: insights.network.counts.issues,
-    performance: insights.performance.findings.length,
-    accessibility: insights.accessibility.violations.length,
-    database: insights.database.findings.length,
-    "api-surface": insights.api.counts.findings,
-    auth: insights.auth.counts.findings,
-    git: insights.git.issues.length + insights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
-    docs: insights.docs.standards
+    env: activeInsights.env.counts.issues,
+    network: activeInsights.network.counts.issues,
+    performance: activeInsights.performance.findings.length,
+    accessibility: activeInsights.accessibility.violations.length,
+    database: activeInsights.database.findings.length,
+    "api-surface": activeInsights.api.counts.findings,
+    auth: activeInsights.auth.counts.findings,
+    git: activeInsights.git.issues.length + activeInsights.git.workflows.reduce((s, w) => s + w.issues.length, 0),
+    docs: activeInsights.docs.standards
       .flatMap((s) => s.checks)
       .filter((c) => c.status === "fail" || c.status === "warn").length,
   }
@@ -265,6 +292,18 @@ export function Dashboard({
                 )}
               </div>
             </div>
+
+            {/* Workspace selector — only shown in monorepo mode */}
+            {workspace && (
+              <div className="border-b border-border p-3">
+                <WorkspaceSelector
+                  monorepo={workspace.monorepo}
+                  aggregate={workspace.aggregate}
+                  selectedPackage={selectedPackage}
+                  onSelect={setSelectedPackage}
+                />
+              </div>
+            )}
 
             {/* Scrollable nav */}
             <nav aria-label="Analysis sections" className="flex flex-1 flex-col gap-5 overflow-y-auto p-3">
@@ -343,9 +382,9 @@ export function Dashboard({
           {/* Right column: sticky top bar + scrollable content */}
           <div className="flex min-w-0 flex-1 flex-col">
             <RunHeader
-              project={report.meta.project}
-              aiEnabled={report.meta.aiEnabled}
-              lastRunMs={empty ? null : report.meta.durationMs}
+              project={activeReport.meta.project}
+              aiEnabled={activeReport.meta.aiEnabled}
+              lastRunMs={empty ? null : activeReport.meta.durationMs}
               lastRunLabel="just now"
               empty={empty}
               demoActive={demoActive}
@@ -419,10 +458,21 @@ export function Dashboard({
               {/* Content */}
               <div className="min-w-0">
                 <TabsContent value="overview">
-                  <OverviewPanel report={report} history={history} insights={insights} onSelectTab={selectTab} />
+                  <OverviewPanel report={activeReport} history={history} insights={activeInsights} onSelectTab={selectTab} />
                 </TabsContent>
+                {workspace && (
+                  <TabsContent value="workspace">
+                    <WorkspaceOverview
+                      workspace={workspace}
+                      onSelectPackage={(name) => {
+                        setSelectedPackage(name)
+                        setTab("overview")
+                      }}
+                    />
+                  </TabsContent>
+                )}
                 <TabsContent value="trends">
-                  <TrendsPanel history={history} report={report} />
+                  <TrendsPanel history={history} report={activeReport} />
                 </TabsContent>
                 <TabsContent value="tasks">
                   <TasksPanel />
@@ -434,7 +484,7 @@ export function Dashboard({
                   <TypesPanel types={types} />
                 </TabsContent>
                 <TabsContent value="tests">
-                  <TestsPanel tests={insights.tests} />
+                  <TestsPanel tests={activeInsights.tests} />
                 </TabsContent>
                 <TabsContent value="security">
                   <SecurityPanel security={security} />
@@ -443,38 +493,38 @@ export function Dashboard({
                   <DependenciesPanel deps={deps} />
                 </TabsContent>
                 <TabsContent value="env">
-                  <EnvPanel env={insights.env} />
+                  <EnvPanel env={activeInsights.env} />
                 </TabsContent>
                 <TabsContent value="network">
-                  <NetworkPanel network={insights.network} />
+                  <NetworkPanel network={activeInsights.network} />
                 </TabsContent>
                 <TabsContent value="performance">
-                  <PerformancePanel performance={insights.performance} />
+                  <PerformancePanel performance={activeInsights.performance} />
                 </TabsContent>
                 <TabsContent value="accessibility">
-                  <AccessibilityPanel accessibility={insights.accessibility} />
+                  <AccessibilityPanel accessibility={activeInsights.accessibility} />
                 </TabsContent>
                 <TabsContent value="database">
-                  <DatabasePanel database={insights.database} />
+                  <DatabasePanel database={activeInsights.database} />
                 </TabsContent>
-                {insights.api.present && (
+                {activeInsights.api.present && (
                   <TabsContent value="api-surface">
-                    <ApiPanel api={insights.api} />
+                    <ApiPanel api={activeInsights.api} />
                   </TabsContent>
                 )}
-                {insights.auth.present && (
+                {activeInsights.auth.present && (
                   <TabsContent value="auth">
-                    <AuthPanel auth={insights.auth} />
+                    <AuthPanel auth={activeInsights.auth} />
                   </TabsContent>
                 )}
                 <TabsContent value="git">
-                  <GitPanel git={insights.git} />
+                  <GitPanel git={activeInsights.git} />
                 </TabsContent>
                 <TabsContent value="setup">
-                  <SetupPanel setup={insights.setup} />
+                  <SetupPanel setup={activeInsights.setup} />
                 </TabsContent>
                 <TabsContent value="docs">
-                  <DocsPanel docs={insights.docs} />
+                  <DocsPanel docs={activeInsights.docs} />
                 </TabsContent>
                 <TabsContent value="api">
                   <ApiReference />
@@ -497,11 +547,11 @@ export function Dashboard({
           tabs={tabs}
           onSelectTab={selectTab}
           onRunChecks={() => setRunOpen(true)}
-          report={report}
-          insights={insights}
+          report={activeReport}
+          insights={activeInsights}
         />
 
-        <RunDialog open={runOpen} onOpenChange={setRunOpen} report={report} />
+        <RunDialog open={runOpen} onOpenChange={setRunOpen} report={activeReport} packageName={selectedPackage ?? undefined} />
       </InspectorProvider>
     </main>
   )

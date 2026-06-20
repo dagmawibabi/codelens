@@ -1,12 +1,13 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import type { AnalysisReport, DashboardState, ProjectInsights, TrendPoint } from "./types.js"
+import type { AnalysisReport, DashboardState, ProjectInsights, TrendPoint, WorkspaceReport } from "./types.js"
 
 const DIR = ".codelens"
 const HISTORY_FILE = "history.json"
 const LATEST_FILE = "latest.json"
 const INSIGHTS_FILE = "insights.json"
 const CHATS_FILE = "chats.json"
+const WORKSPACE_DIR = "workspace"
 
 function dir(cwd: string) {
   return path.join(cwd, DIR)
@@ -42,6 +43,17 @@ export async function clearData(cwd: string, scope: ClearScope = "all"): Promise
       /* ignore — file may not exist */
     }
   }
+
+  // Also clear workspace directory
+  if (scope === "all" || scope === "runs") {
+    try {
+      await fs.rm(path.join(base, WORKSPACE_DIR), { recursive: true, force: true })
+      removed.push(WORKSPACE_DIR)
+    } catch {
+      /* ignore — may not exist */
+    }
+  }
+
   return removed
 }
 
@@ -73,6 +85,11 @@ export async function saveRun(
   const trimmed = history.slice(-50)
 
   await fs.writeFile(path.join(base, HISTORY_FILE), JSON.stringify(trimmed, null, 2), "utf8")
+
+  // Save workspace package data if present
+  if (report.meta.workspace) {
+    await savePackageRun(cwd, report.meta.workspace.packageName ?? "root", report)
+  }
 }
 
 export async function readHistory(cwd: string): Promise<TrendPoint[]> {
@@ -111,4 +128,83 @@ export async function readState(cwd: string): Promise<DashboardState | null> {
   ])
   if (!report || !insights) return null
   return { report, insights, history }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              Workspace storage                              */
+/* -------------------------------------------------------------------------- */
+
+function pkgDir(cwd: string, packageName: string) {
+  return path.join(dir(cwd), WORKSPACE_DIR, sanitizePackageName(packageName))
+}
+
+/** Sanitize package name for use as a directory name (e.g. "@scope/pkg" → "@scope__pkg"). */
+function sanitizePackageName(name: string): string {
+  return name.replace(/\//g, "__")
+}
+
+/** Save a per-package report and trend history. */
+export async function savePackageRun(
+  cwd: string,
+  packageName: string,
+  report: AnalysisReport,
+): Promise<void> {
+  const base = pkgDir(cwd, packageName)
+  await fs.mkdir(base, { recursive: true })
+
+  await fs.writeFile(path.join(base, LATEST_FILE), JSON.stringify(report, null, 2), "utf8")
+
+  const historyPath = path.join(base, HISTORY_FILE)
+  let history: TrendPoint[] = []
+  try {
+    history = JSON.parse(await fs.readFile(historyPath, "utf8"))
+  } catch {
+    /* empty */
+  }
+  history.push({
+    runId: report.meta.id,
+    timestamp: report.meta.finishedAt,
+    score: report.health.score,
+    lintErrors: report.lint.errorCount,
+    lintWarnings: report.lint.warningCount,
+    typeErrors: report.types.diagnostics.length,
+    securityFindings: report.security.findings.length,
+  })
+  await fs.writeFile(historyPath, JSON.stringify(history.slice(-50), null, 2), "utf8")
+}
+
+/** Save all workspace package reports. */
+export async function saveWorkspaceRun(
+  cwd: string,
+  workspace: WorkspaceReport,
+): Promise<void> {
+  for (const [name, pkgData] of Object.entries(workspace.packages)) {
+    await savePackageRun(cwd, name, pkgData.report)
+  }
+}
+
+/** Read a per-package report. */
+export async function readPackageReport(
+  cwd: string,
+  packageName: string,
+): Promise<AnalysisReport | null> {
+  try {
+    const raw = await fs.readFile(path.join(pkgDir(cwd, packageName), LATEST_FILE), "utf8")
+    return JSON.parse(raw) as AnalysisReport
+  } catch {
+    return null
+  }
+}
+
+/** Read per-package history. */
+export async function readPackageHistory(
+  cwd: string,
+  packageName: string,
+): Promise<TrendPoint[]> {
+  try {
+    const raw = await fs.readFile(path.join(pkgDir(cwd, packageName), HISTORY_FILE), "utf8")
+    return JSON.parse(raw) as TrendPoint[]
+  } catch {
+    return []
+  }
 }

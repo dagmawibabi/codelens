@@ -275,6 +275,19 @@ function eventToLogs(event: RunEventLike): { level: LogLevel; text: string }[] {
   if (event.type === "state") {
     return [{ level: "success", text: "Run complete — dashboard updated" }]
   }
+  if (event.type === "workspace") {
+    return [{ level: "info", text: `Monorepo detected: ${event.workspace.packages.length} packages (${event.workspace.tool})` }]
+  }
+  if (event.type === "package-start") {
+    return [
+      { level: "command", text: `Analyzing package: ${event.packageName}` },
+      { level: "info", text: `Path: ${event.packagePath}` },
+    ]
+  }
+  if (event.type === "package-done") {
+    const score = event.report?.health?.score
+    return [{ level: "success", text: `Package "${event.packageName}" complete — health ${score ?? "?"}/100` }]
+  }
   return []
 }
 
@@ -291,6 +304,9 @@ type RunEventLike =
     }
   | { type: "report"; report: { health?: { score?: number } } }
   | { type: "state"; state: unknown }
+  | { type: "workspace"; workspace: { packages: unknown[]; tool: string } }
+  | { type: "package-start"; packageName: string; packagePath: string }
+  | { type: "package-done"; packageName: string; report: { health?: { score?: number } } }
 
 /**
  * Drives the Run-checks view. Prefers a real, connected CodeLens CLI backend:
@@ -298,7 +314,7 @@ type RunEventLike =
  * the `/ws` socket. When there's no backend (standalone preview) it falls back
  * to a scripted simulation so the UI is still demonstrable.
  */
-export function useRunStream(aiEnabled = true, autoStart = false, report?: AnalysisReport): RunState {
+export function useRunStream(aiEnabled = true, autoStart = false, report?: AnalysisReport, packageName?: string): RunState {
   const [phases, setPhases] = useState<Record<RunPhase, PhaseStatus>>(IDLE)
   const [logs, setLogs] = useState<LogLine[]>([])
   const [running, setRunning] = useState(false)
@@ -468,7 +484,8 @@ export function useRunStream(aiEnabled = true, autoStart = false, report?: Analy
 
     // Trigger the real run. A 2xx/409 means a CLI backend handled it (live).
     // Anything else (or a network error) means we're standalone → simulate.
-    fetch("/api/run", { method: "POST" })
+    const runUrl = packageName ? `/api/run?package=${encodeURIComponent(packageName)}` : "/api/run"
+    fetch(runUrl, { method: "POST" })
       .then((res) => {
         decided = true
         // Ignore the response if this run was superseded/unmounted.

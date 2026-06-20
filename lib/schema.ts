@@ -222,6 +222,42 @@ export interface HealthScore {
   breakdown: { lint: number; types: number; security: number }
 }
 
+/* ------------------------------- Workspace -------------------------------- */
+
+export interface WorkspacePackage {
+  name: string
+  path: string
+  relPath: string
+}
+
+export interface MonorepoInfo {
+  root: string
+  tool: "pnpm" | "npm" | "yarn" | "turborepo" | "lerna" | "nx" | "unknown"
+  packages: WorkspacePackage[]
+  rootIsPackage: boolean
+}
+
+export interface AggregateHealth {
+  score: number
+  grade: "A+" | "A" | "B" | "C" | "D" | "F"
+  packageScores: { name: string; score: number; grade: string }[]
+  totalLintErrors: number
+  totalTypeErrors: number
+  totalSecurityFindings: number
+}
+
+export interface WorkspacePackageData {
+  report: AnalysisReport
+  insights: unknown
+}
+
+export interface WorkspaceReport {
+  monorepo: MonorepoInfo
+  packages: Record<string, WorkspacePackageData>
+  rootReport: AnalysisReport | null
+  aggregate: AggregateHealth
+}
+
 export interface RunMeta {
   id: string
   cwd: string
@@ -230,6 +266,8 @@ export interface RunMeta {
   finishedAt: string
   durationMs: number
   aiEnabled: boolean
+  /** Present when running in monorepo mode. */
+  workspace?: { monorepo: MonorepoInfo; packageName: string | null }
 }
 
 export interface AnalysisReport {
@@ -270,4 +308,7 @@ export type RunEvent =
       security?: SecurityResult
     }
   | { type: "report"; report: AnalysisReport }
-  | { type: "state"; state: { report: AnalysisReport; insights: unknown; history: TrendPoint[] } }
+  | { type: "state"; state: { report: AnalysisReport; insights: unknown; history: TrendPoint[]; workspace?: WorkspaceReport } }
+  | { type: "workspace"; workspace: MonorepoInfo }
+  | { type: "package-start"; packageName: string; packagePath: string }
+  | { type: "package-done"; packageName: string; report: AnalysisReport }

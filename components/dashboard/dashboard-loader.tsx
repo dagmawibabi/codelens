@@ -23,6 +23,7 @@ export function DashboardLoader() {
         report={data.report}
         history={data.history}
         insights={data.insights}
+        workspace={data.workspace}
         empty={empty}
         demoActive={source === "demo"}
         onToggleDemo={setDemo}

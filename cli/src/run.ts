@@ -6,7 +6,20 @@ import { runSecurityAudit } from "./ai/audit.js"
 import { buildReport } from "./report.js"
 import { buildDependencyResult } from "./deps-graph.js"
 import { collectInsights, ScanContext } from "./insights/index.js"
-import type { AnalysisReport, DashboardState, ProjectInsights, RunEvent, TrendPoint } from "./types.js"
+import { gradeForScore } from "./health.js"
+import { discoverWorkspace } from "./workspace/discover.js"
+import { runPackageAnalysis } from "./workspace/run-package.js"
+import type {
+  AnalysisReport,
+  AggregateHealth,
+  DashboardState,
+  MonorepoInfo,
+  ProjectInsights,
+  RunEvent,
+  TrendPoint,
+  WorkspacePackageData,
+  WorkspaceReport,
+} from "./types.js"
 
 export type RunScope = "all" | "security"
 
@@ -169,4 +182,158 @@ async function runSecurityOnly(args: {
   emit({ type: "state", state })
 
   return { report, insights: prior.insights }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              Workspace analysis                             */
+/* -------------------------------------------------------------------------- */
+
+export interface WorkspaceRunResult {
+  report: AnalysisReport
+  insights: ProjectInsights
+  workspace: WorkspaceReport
+}
+
+/**
+ * Analyze a monorepo: discover workspace packages, run analysis on each,
+ * and aggregate results into a single WorkspaceReport.
+ */
+export async function runWorkspaceAnalysis(opts: RunOptions): Promise<WorkspaceRunResult> {
+  const { cwd, ai, onEvent } = opts
+  const emit = (e: RunEvent) => onEvent?.(e)
+
+  const monorepo = await discoverWorkspace(cwd)
+  if (!monorepo) {
+    // Fallback: single-project mode
+    const result = await runAnalysis(opts)
+    return {
+      report: result.report,
+      insights: result.insights,
+      workspace: {
+        monorepo: { root: cwd, tool: "unknown", packages: [], rootIsPackage: true },
+        packages: {},
+        rootReport: null,
+        aggregate: {
+          score: result.report.health.score,
+          grade: result.report.health.grade,
+          packageScores: [],
+          totalLintErrors: result.report.lint.errorCount,
+          totalTypeErrors: result.report.types.diagnostics.length,
+          totalSecurityFindings: result.report.security.findings.length,
+        },
+      },
+    }
+  }
+
+  emit({ type: "workspace", workspace: monorepo })
+
+  const packageData: Record<string, WorkspacePackageData> = {}
+
+  for (const pkg of monorepo.packages) {
+    try {
+      const { report, insights } = await runPackageAnalysis({
+        pkg,
+        ai,
+        monorepo,
+        onEvent,
+      })
+      packageData[pkg.name] = { report, insights }
+    } catch (err) {
+      // Isolate failures — one broken package shouldn't abort the whole workspace run
+      if (process.env.CODELENS_DEBUG) {
+        console.error(`[codelens] package "${pkg.name}" failed:`, err)
+      }
+    }
+  }
+
+  const aggregate = buildAggregateHealth(packageData)
+
+  // Use the root package's report as the "primary" report for backward compat
+  const rootPkg = monorepo.packages.find((p) => p.path === monorepo.root)
+  const primaryReport = rootPkg ? packageData[rootPkg.name]?.report ?? null : null
+  const primaryInsights = rootPkg ? packageData[rootPkg.name]?.insights ?? null : null
+
+  const workspace: WorkspaceReport = {
+    monorepo,
+    packages: packageData,
+    rootReport: primaryReport,
+    aggregate,
+  }
+
+  return {
+    report: primaryReport ?? Object.values(packageData)[0]?.report,
+    insights: primaryInsights ?? Object.values(packageData)[0]?.insights,
+    workspace,
+  }
+}
+
+/**
+ * Analyze a single package within a monorepo.
+ */
+export async function runSinglePackage(opts: {
+  cwd: string
+  packageName: string
+  ai: boolean
+  onEvent?: (event: RunEvent) => void
+  history?: TrendPoint[]
+}): Promise<{ report: AnalysisReport; insights: ProjectInsights; workspace: WorkspaceReport }> {
+  const { cwd, packageName, ai, onEvent } = opts
+  const emit = (e: RunEvent) => onEvent?.(e)
+
+  const monorepo = await discoverWorkspace(cwd)
+  if (!monorepo) {
+    throw new Error(`Not a monorepo: ${cwd}`)
+  }
+
+  const pkg = monorepo.packages.find((p) => p.name === packageName)
+  if (!pkg) {
+    throw new Error(`Package "${packageName}" not found in workspace. Available: ${monorepo.packages.map((p) => p.name).join(", ")}`)
+  }
+
+  emit({ type: "workspace", workspace: monorepo })
+
+  const { report, insights } = await runPackageAnalysis({ pkg, ai, monorepo, onEvent })
+
+  // Rebuild aggregate from the single result (or all if we want full context)
+  const aggregate: AggregateHealth = {
+    score: report.health.score,
+    grade: report.health.grade,
+    packageScores: [{ name: pkg.name, score: report.health.score, grade: report.health.grade }],
+    totalLintErrors: report.lint.errorCount,
+    totalTypeErrors: report.types.diagnostics.length,
+    totalSecurityFindings: report.security.findings.length,
+  }
+
+  const workspace: WorkspaceReport = {
+    monorepo,
+    packages: { [pkg.name]: { report, insights } },
+    rootReport: pkg.path === monorepo.root ? report : null,
+    aggregate,
+  }
+
+  return { report, insights, workspace }
+}
+
+function buildAggregateHealth(packageData: Record<string, WorkspacePackageData>): AggregateHealth {
+  const entries = Object.entries(packageData)
+  const scores = entries.map(([name, d]) => ({
+    name,
+    score: d.report.health.score,
+    grade: d.report.health.grade,
+  }))
+  const avgScore = scores.length
+    ? Math.round(scores.reduce((s, e) => s + e.score, 0) / scores.length)
+    : 0
+  const totalLintErrors = entries.reduce((s, [, d]) => s + d.report.lint.errorCount, 0)
+  const totalTypeErrors = entries.reduce((s, [, d]) => s + d.report.types.diagnostics.length, 0)
+  const totalSecurityFindings = entries.reduce((s, [, d]) => s + d.report.security.findings.length, 0)
+
+  return {
+    score: avgScore,
+    grade: gradeForScore(avgScore),
+    packageScores: scores,
+    totalLintErrors,
+    totalTypeErrors,
+    totalSecurityFindings,
+  }
 }

@@ -44,7 +44,7 @@ export async function startServer(opts: {
    * Triggers a fresh analysis when the dashboard requests one (POST /api/run).
    * `scope: "security"` requests a fast rescan of just the AI security pass.
    */
-  onRunRequest?: (scope: "all" | "security") => Promise<void> | void
+  onRunRequest?: (scope: "all" | "security", packageName?: string) => Promise<void> | void
   /** Deletes persisted artifacts on disk (DELETE /api/data). */
   onClearData?: (scope: "all" | "runs" | "chats") => Promise<string[]> | string[]
 }): Promise<ServerHandle> {
@@ -99,13 +99,14 @@ export async function startServer(opts: {
       }
       const scopeParam = url.searchParams.get("scope")
       const scope = scopeParam === "security" ? "security" : "all"
+      const packageParam = url.searchParams.get("package") ?? undefined
       running = true
       res.writeHead(202, { "content-type": "application/json" })
-      res.end(JSON.stringify({ ok: true, scope }))
+      res.end(JSON.stringify({ ok: true, scope, package: packageParam }))
       // Run after responding; completion is broadcast over the socket. A
       // failure here must never crash the server — log it and reset the lock.
       Promise.resolve()
-        .then(() => onRunRequest(scope))
+        .then(() => onRunRequest(scope, packageParam))
         .catch((err) => {
           console.error("\x1b[31m[codelens]\x1b[0m run failed:", err)
         })
@@ -135,6 +136,26 @@ export async function startServer(opts: {
     if (url.pathname === "/api/history") {
       res.writeHead(200, { "content-type": "application/json" })
       res.end(JSON.stringify(state.current?.history ?? []))
+      return
+    }
+
+    // Workspace endpoints (monorepo mode)
+    if (url.pathname === "/api/packages") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify(state.current?.workspace?.monorepo.packages ?? []))
+      return
+    }
+    if (url.pathname === "/api/aggregate") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify(state.current?.workspace?.aggregate ?? null))
+      return
+    }
+    if (url.pathname.startsWith("/api/package/")) {
+      const packageName = decodeURIComponent(url.pathname.slice("/api/package/".length))
+      const workspace = state.current?.workspace
+      const report = workspace?.packages[packageName] ?? null
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify(report))
       return
     }
 

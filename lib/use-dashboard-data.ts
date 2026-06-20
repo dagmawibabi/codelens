@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import useSWR from "swr"
-import type { AnalysisReport, TrendPoint } from "@/lib/schema"
+import type { AnalysisReport, TrendPoint, WorkspaceReport } from "@/lib/schema"
 import { mockReport, mockHistory } from "@/lib/mock-data"
 import { projectInsights, type ProjectInsights } from "@/lib/project-insights"
 import { EMPTY_DATA } from "@/lib/empty-data"
@@ -12,6 +12,8 @@ export interface DashboardData {
   report: AnalysisReport
   insights: ProjectInsights
   history: TrendPoint[]
+  /** Present in monorepo mode. */
+  workspace?: WorkspaceReport
 }
 
 /**

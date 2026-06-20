@@ -212,6 +212,58 @@ export interface DependencyResult {
   graph?: DependencyGraph
 }
 
+/* ------------------------------- Workspace -------------------------------- */
+
+export interface WorkspacePackage {
+  /** Display name (e.g. "@scope/core"). */
+  name: string
+  /** Absolute path to the package directory. */
+  path: string
+  /** Relative path from monorepo root. */
+  relPath: string
+  /** Contents of the package's package.json (lazily loaded). */
+  pkgJson: {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  } | null
+}
+
+export interface MonorepoInfo {
+  /** Absolute path to the monorepo root. */
+  root: string
+  /** Detected monorepo tool. */
+  tool: "pnpm" | "npm" | "yarn" | "turborepo" | "lerna" | "nx" | "unknown"
+  /** All workspace packages including root if it has a package.json. */
+  packages: WorkspacePackage[]
+  /** Whether the root itself is a package. */
+  rootIsPackage: boolean
+}
+
+export interface AggregateHealth {
+  score: number
+  grade: "A+" | "A" | "B" | "C" | "D" | "F"
+  packageScores: { name: string; score: number; grade: string }[]
+  totalLintErrors: number
+  totalTypeErrors: number
+  totalSecurityFindings: number
+}
+
+export interface WorkspacePackageData {
+  report: AnalysisReport
+  insights: ProjectInsights
+}
+
+export interface WorkspaceReport {
+  monorepo: MonorepoInfo
+  /** Per-package reports and insights keyed by package name. */
+  packages: Record<string, WorkspacePackageData>
+  /** The root-level report (null if root is not a package). */
+  rootReport: AnalysisReport | null
+  /** Aggregated health score across all packages. */
+  aggregate: AggregateHealth
+}
+
 /* --------------------------------- Report --------------------------------- */
 
 export interface HealthScore {
@@ -232,6 +284,8 @@ export interface RunMeta {
   finishedAt: string
   durationMs: number
   aiEnabled: boolean
+  /** Present when running in monorepo mode. */
+  workspace?: { monorepo: MonorepoInfo; packageName: string | null }
 }
 
 export interface AnalysisReport {
@@ -266,6 +320,8 @@ export interface DashboardState {
   report: AnalysisReport
   insights: ProjectInsights
   history: TrendPoint[]
+  /** Present in monorepo mode. */
+  workspace?: WorkspaceReport
 }
 
 /* ---------------------------- Streaming events ---------------------------- */
@@ -284,3 +340,6 @@ export type RunEvent =
     }
   | { type: "report"; report: AnalysisReport }
   | { type: "state"; state: DashboardState | null }
+  | { type: "workspace"; workspace: MonorepoInfo }
+  | { type: "package-start"; packageName: string; packagePath: string }
+  | { type: "package-done"; packageName: string; report: AnalysisReport }

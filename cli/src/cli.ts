@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import path from "node:path"
 import { Command } from "commander"
 import open from "open"
-import { runAnalysis } from "./run.js"
+import { runAnalysis, runWorkspaceAnalysis, runSinglePackage } from "./run.js"
 import { startServer, type ServerState } from "./server.js"
 import { saveRun, readHistory, readState, clearData } from "./store.js"
 import { aiEnabled } from "./ai/audit.js"
 import { loadConfig } from "./config.js"
+import { discoverWorkspace } from "./workspace/discover.js"
 import type { DashboardState, RunEvent } from "./types.js"
 
 const program = new Command()
@@ -20,11 +22,13 @@ program
   .option("--ci", "run once, print summary, exit non-zero if issues are found")
   .option("--json", "print the full report as JSON and exit")
   .option("--min-score <number>", "fail in --ci mode if health score is below this", "0")
+  .option("-d, --dir <path>", "project directory to analyze (default: cwd)")
+  .option("--package <name>", "analyze only this workspace package (monorepo mode)")
 
 program.parse()
 const opts = program.opts()
 
-const cwd = process.cwd()
+const cwd = opts.dir ? path.resolve(opts.dir) : process.cwd()
 
 // Load `.codelens.json` first: it hydrates process.env (AI Gateway key,
 // GITHUB_TOKEN, …) and provides the model / file-budget chosen in the
@@ -47,13 +51,39 @@ if (Boolean(opts.ai) && config.aiEnabled && !aiEnabled()) {
 }
 
 async function main() {
+  // Check if this is a monorepo
+  const monorepo = await discoverWorkspace(cwd)
+
   // ---- Headless modes: --ci and --json ----
   if (opts.ci || opts.json) {
     const history = await readHistory(cwd)
-    const { report, insights } = await runAnalysis({ cwd, ai, history })
+
+    let report: import("./types.js").AnalysisReport
+    let insights: import("./types.js").ProjectInsights
+    let workspace: import("./types.js").WorkspaceReport | undefined
+
+    if (opts.package && monorepo) {
+      // Analyze a single package in the workspace
+      const result = await runSinglePackage({ cwd, packageName: opts.package, ai })
+      report = result.report
+      insights = result.insights
+      workspace = result.workspace
+    } else if (monorepo && !opts.package) {
+      // Full workspace analysis
+      const result = await runWorkspaceAnalysis({ cwd, ai, history })
+      report = result.report
+      insights = result.insights
+      workspace = result.workspace
+    } else {
+      // Single project mode (unchanged)
+      const result = await runAnalysis({ cwd, ai, history })
+      report = result.report
+      insights = result.insights
+    }
 
     if (opts.json) {
-      process.stdout.write(JSON.stringify({ report, insights, history } satisfies DashboardState, null, 2) + "\n")
+      const payload: DashboardState = { report, insights, history, workspace }
+      process.stdout.write(JSON.stringify(payload, null, 2) + "\n")
       return
     }
 
@@ -89,18 +119,48 @@ async function main() {
   // A single analysis pass: stream events, persist, and refresh live state.
   // `scope: "security"` runs a fast targeted rescan that recomputes only the AI
   // security pass and reuses the rest of the previous run.
-  const analyze = async (scope: "all" | "security" = "all") => {
+  const analyze = async (scope: "all" | "security" = "all", packageName?: string) => {
     const priorHistory = await readHistory(cwd)
-    const { report, insights } = await runAnalysis({
-      cwd,
-      ai,
-      history: priorHistory,
-      onEvent,
-      scope,
-      prior: scope === "security" ? state.current : null,
-    })
+
+    let report: import("./types.js").AnalysisReport
+    let insights: import("./types.js").ProjectInsights
+    let workspace: import("./types.js").WorkspaceReport | undefined
+
+    if (packageName && monorepo) {
+      // Analyze a single package
+      const result = await runSinglePackage({ cwd, packageName, ai })
+      report = result.report
+      insights = result.insights
+      workspace = result.workspace
+    } else if (monorepo && !packageName) {
+      // Full workspace analysis
+      const result = await runWorkspaceAnalysis({
+        cwd,
+        ai,
+        history: priorHistory,
+        onEvent,
+        scope,
+        prior: scope === "security" ? state.current : null,
+      })
+      report = result.report
+      insights = result.insights
+      workspace = result.workspace
+    } else {
+      // Single project mode (unchanged)
+      const result = await runAnalysis({
+        cwd,
+        ai,
+        history: priorHistory,
+        onEvent,
+        scope,
+        prior: scope === "security" ? state.current : null,
+      })
+      report = result.report
+      insights = result.insights
+    }
+
     await saveRun(cwd, report, insights)
-    const refreshed = { report, insights, history: await readHistory(cwd) }
+    const refreshed: DashboardState = { report, insights, history: await readHistory(cwd), workspace }
     state.current = refreshed
     server.broadcast({ type: "state", state: refreshed })
     return report
@@ -109,12 +169,18 @@ async function main() {
   const server = await startServer({
     port: Number(opts.port) || 4321,
     state,
-    onRunRequest: async (scope) => {
-      await analyze(scope)
+    onRunRequest: async (scope, packageName) => {
+      await analyze(scope, packageName)
     },
     onClearData: (scope) => clearData(cwd, scope),
   })
   console.log(`\n  \x1b[36mCodeLens\x1b[0m dashboard → \x1b[1m${server.url}\x1b[0m\n`)
+
+  if (monorepo) {
+    console.log(
+      `  \x1b[33mMonorepo detected:\x1b[0m ${monorepo.packages.length} packages (${monorepo.tool})\n`,
+    )
+  }
 
   if (opts.open) {
     open(server.url).catch(() => {
@@ -124,13 +190,27 @@ async function main() {
 
   const report = await analyze()
 
-  console.log(
-    `  Done. Health \x1b[1m${report.health.score}\x1b[0m (${report.health.grade}) · ` +
-      `${report.lint.errorCount} lint errors · ` +
-      `${report.types.diagnostics.length} type errors · ` +
-      `${report.security.findings.length} security findings.\n` +
-      `  Dashboard stays live. Press Ctrl+C to exit.\n`,
-  )
+  if (monorepo && report.meta.workspace) {
+    // Workspace mode: print aggregate summary
+    const ws = state.current?.workspace
+    if (ws) {
+      console.log(
+        `  Done. Workspace health \x1b[1m${ws.aggregate.score}\x1b[0m (${ws.aggregate.grade}) · ` +
+          `${ws.aggregate.totalLintErrors} lint errors · ` +
+          `${ws.aggregate.totalTypeErrors} type errors · ` +
+          `${ws.aggregate.totalSecurityFindings} security findings.\n` +
+          `  Packages: ${ws.aggregate.packageScores.map((p) => `${p.name}(${p.score})`).join(", ")}\n`,
+      )
+    }
+  } else {
+    console.log(
+      `  Done. Health \x1b[1m${report.health.score}\x1b[0m (${report.health.grade}) · ` +
+        `${report.lint.errorCount} lint errors · ` +
+        `${report.types.diagnostics.length} type errors · ` +
+        `${report.security.findings.length} security findings.\n`,
+    )
+  }
+  console.log(`  Dashboard stays live. Press Ctrl+C to exit.\n`)
 
   process.on("SIGINT", async () => {
     await server.close()

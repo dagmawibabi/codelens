@@ -40,12 +40,12 @@ const LEVEL_TAG: Record<LogLevel, string> = {
  * Inner body that drives the run engine. Mounted only while the dialog is open
  * so that each open starts a fresh run (the hook auto-starts on mount).
  */
-function RunDialogBody({ report, onClose }: { report: AnalysisReport; onClose: () => void }) {
+function RunDialogBody({ report, packageName, onClose }: { report: AnalysisReport; packageName?: string; onClose: () => void }) {
   const aiEnabled = report.meta.aiEnabled
   // Drives the view from real CLI events when a backend is connected, and
   // triggers the actual `/api/run` itself; falls back to a scripted run only
   // when there is no backend (standalone preview).
-  const { phases, logs, running, done, elapsedMs, start, mode } = useRunStream(aiEnabled, true, report)
+  const { phases, logs, running, done, elapsedMs, start, mode } = useRunStream(aiEnabled, true, report, packageName)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -219,9 +219,10 @@ interface RunDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   report: AnalysisReport
+  packageName?: string
 }
 
-export function RunDialog({ open, onOpenChange, report }: RunDialogProps) {
+export function RunDialog({ open, onOpenChange, report, packageName }: RunDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto sm:max-w-3xl lg:max-w-4xl">
@@ -232,7 +233,7 @@ export function RunDialog({ open, onOpenChange, report }: RunDialogProps) {
           </DialogDescription>
         </DialogHeader>
         <div className="pt-5">
-          {open && <RunDialogBody report={report} onClose={() => onOpenChange(false)} />}
+          {open && <RunDialogBody report={report} packageName={packageName} onClose={() => onOpenChange(false)} />}
         </div>
       </DialogContent>
     </Dialog>
